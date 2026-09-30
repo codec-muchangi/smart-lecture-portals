@@ -1,0 +1,49 @@
+# Manual, gated release build. Deployment targets are chosen per SRS section 18 (any compatible host).
+# It re-runs the full test suite first: nothing is built for release if a test fails (SRS section 19).
+name: Release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build (defaults to main)
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r backend/requirements-dev.txt
+      - run: cd backend && ruff check . && pytest -q
+        env:
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci && npm run lint && npm test
+      - run: cd frontend && npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-frontend-dist
+          path: frontend/dist
+      # Add the host-specific publish step here (Vercel/Netlify/Render/etc.) using repository secrets.
+      # Apply DB changes separately: run db/migrations in order against production, after a backup.

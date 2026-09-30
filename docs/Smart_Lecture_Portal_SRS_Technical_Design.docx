@@ -1,0 +1,1151 @@
+**SMART LECTURE PORTAL**
+**Software Requirements Specification (SRS)**
+**and Technical Design Document**
+
+*Final Year Computer Science Project*
+
+Version 1.0 | September 2026
+
+Implementation Blueprint for AI Coding Assistants
+
+# Document Control
+
+| **Item** | **Value** |
+| --- | --- |
+| Project Name | Smart Lecture Portal |
+| Document Type | Software Requirements Specification + Technical Design |
+| Version | 1.0 |
+| Status | Baseline implementation specification |
+| Primary Users | Student, Lecturer |
+| Administrator Role | Not included in this scope |
+| Recommended Frontend | React + Vite |
+| Recommended Backend | FastAPI (Python) |
+| Recommended Platform Services | Supabase (PostgreSQL, Authentication, Storage) |
+| API Style | RESTful JSON API |
+| Target | Web application, responsive desktop/tablet/mobile UI |
+
+## Revision History
+
+| **Version** | **Date** | **Change** |
+| --- | --- | --- |
+| 1.0 | 2026-09-30 | Initial complete SRS and technical design baseline |
+
+# Table of Contents
+
+Use Microsoft Word's automatic Table of Contents feature after opening the document. Heading styles have been applied throughout this specification.
+
+# 1. Introduction
+
+## 1.1 Purpose
+
+This document defines the complete functional requirements, non-functional requirements, system architecture, data model, API design, user workflows, security requirements, validation rules, testing strategy, deployment approach, and implementation constraints for the Smart Lecture Portal.
+
+The document is intentionally written as an implementation baseline. An AI coding assistant should treat it as the source of truth for the first release and should not invent additional user roles, major modules, database entities, or workflows without explicit approval.
+
+## 1.2 Product Vision
+
+The Smart Lecture Portal is a web-based academic management and learning-support platform that connects lecturers and students. It centralizes course information, learning materials, assignments, submissions, attendance, marks, announcements, notifications, and academic reporting in one system.
+
+## 1.3 Scope
+
+The system has exactly two application roles:
+
+Student: consumes learning resources, submits academic work, views academic information, and receives course communication.
+
+Lecturer: manages assigned courses, publishes learning resources, creates and grades assignments, manages attendance and marks, and communicates with enrolled students.
+
+There is no administrator dashboard in Version 1.0. Initial system configuration such as creation of accounts, courses, or academic structures is considered outside the application scope unless explicitly added in a future version.
+
+## 1.4 Objectives
+
+Provide secure role-based access for students and lecturers.
+
+Centralize course materials and academic activities.
+
+Allow lecturers to manage assignments, submissions, attendance, marks, and announcements.
+
+Allow students to access learning resources, submit work, monitor attendance, and view marks.
+
+Automate calculations such as attendance percentages and assignment/course totals where configured.
+
+Provide useful dashboards and reports without requiring manual spreadsheet processing.
+
+Maintain an auditable record of important academic actions.
+
+Provide a responsive and maintainable architecture suitable for a final-year software engineering project.
+
+# 2. Product Scope and Boundaries
+
+## 2.1 In Scope
+
+| **Module** | **Included Capabilities** |
+| --- | --- |
+| Authentication | Login, logout, password reset/change, session/token handling, role-based authorization |
+| Student Dashboard | Overview of courses, assignments, attendance, marks, announcements and notifications |
+| Lecturer Dashboard | Overview of assigned courses, pending grading, attendance, submissions, announcements and performance |
+| Course Management | View/manage assigned courses, course details, enrollment visibility |
+| Materials | Upload, list, view/download, update metadata and delete course materials |
+| Assignments | Create, publish, update, close, grade and provide feedback |
+| Submissions | Student upload/submission, submission status, lecturer review, grading and feedback |
+| Attendance | Create lecture sessions, mark students, edit attendance with audit information, view summaries |
+| Marks | Create assessment records, enter/update marks, calculate totals where configured, publish marks |
+| Announcements | Create and display course announcements |
+| Notifications | In-app notifications for important events |
+| Timetable | Display relevant scheduled classes; lecturer view for assigned teaching sessions |
+| Reports | Course-level attendance, marks, assignment and submission summaries |
+| Profiles | View/update allowed profile fields and change password |
+| Search/Filtering | Search and filter courses, materials, assignments, students and records within authorized scope |
+
+## 2.2 Out of Scope for Version 1.0
+
+Administrator role/dashboard.
+
+University-wide student admission or registration.
+
+Tuition/fee/payment processing.
+
+Payroll and lecturer HR management.
+
+Library management.
+
+Hostel/accommodation management.
+
+Examination timetable management at institution level.
+
+Biometric attendance.
+
+Facial recognition.
+
+AI-generated grading or AI-generated academic decisions.
+
+Public social networking.
+
+Real-time video conferencing/class streaming.
+
+Native Android/iOS apps.
+
+Multi-university tenant management.
+
+## 2.3 Future Enhancements
+
+QR-code attendance.
+
+Email/SMS/push notifications.
+
+Online quizzes and question banks.
+
+Discussion forums.
+
+Calendar integration.
+
+Advanced analytics and early-warning dashboards.
+
+Native mobile application.
+
+Optional AI features subject to separate requirements, privacy review and academic approval.
+
+# 3. Users, Roles and Permissions
+
+| **Capability** | **Student** | **Lecturer** |
+| --- | --- | --- |
+| Login/logout | Yes | Yes |
+| View own profile | Yes | Yes |
+| Edit own allowed profile fields | Yes | Yes |
+| View enrolled/assigned courses | Yes | Yes |
+| Create/manage course | No | Only assigned course scope |
+| Upload course materials | No | Yes |
+| Download/view materials | Yes | Yes |
+| Create assignments | No | Yes |
+| Submit assignments | Yes | No |
+| Grade submissions | No | Yes |
+| View own marks | Yes | Yes for course scope |
+| Create/update assessment marks | No | Yes |
+| Create attendance sessions | No | Yes |
+| Mark attendance | No | Yes |
+| View own attendance | Yes | Yes for course scope |
+| Create course announcements | No | Yes |
+| Receive notifications | Yes | Yes |
+| View course reports | Student-specific | Yes |
+
+## 3.1 Authorization Principle
+
+Every protected API operation must verify both authentication and authorization. A valid login is not sufficient: the backend must confirm that the authenticated user owns the resource or has lecturer access to the relevant course. Frontend route guards are for user experience; backend authorization is mandatory for security.
+
+# 4. Functional Requirements
+
+## 4.1 Authentication and Account Management
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-AUTH-01 | The system shall allow a registered user to log in using their configured credentials. |
+| FR-AUTH-02 | The system shall identify the user's role as Student or Lecturer after authentication. |
+| FR-AUTH-03 | The system shall deny access to protected resources when the user is not authenticated. |
+| FR-AUTH-04 | The system shall enforce role-based access controls on protected backend endpoints. |
+| FR-AUTH-05 | The system shall provide logout and invalidate/expire the relevant authentication session or token. |
+| FR-AUTH-06 | The system shall provide password reset/change flows using the selected authentication provider. |
+| FR-AUTH-07 | The system shall never store plaintext passwords in application tables. |
+| FR-AUTH-08 | The system shall provide appropriate authentication error messages without exposing sensitive information. |
+
+## 4.2 Student
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-STU-01 | Student shall view a dashboard containing relevant courses, upcoming assignments, attendance summary, recent marks, announcements and notifications. |
+| FR-STU-02 | Student shall view courses in which they are enrolled. |
+| FR-STU-03 | Student shall view course details and lecturer information within authorized scope. |
+| FR-STU-04 | Student shall view and download available course materials. |
+| FR-STU-05 | Student shall view assignment instructions, deadline, total marks and status. |
+| FR-STU-06 | Student shall upload an assignment submission before the applicable deadline. |
+| FR-STU-07 | Student shall see whether a submission is submitted, late, graded, or returned for revision when such status is configured. |
+| FR-STU-08 | Student shall view marks and lecturer feedback that have been released to the student. |
+| FR-STU-09 | Student shall view attendance history and calculated attendance percentage for enrolled courses. |
+| FR-STU-10 | Student shall view course announcements and relevant notifications. |
+| FR-STU-11 | Student shall view the timetable relevant to their courses. |
+| FR-STU-12 | Student shall update permitted profile fields and change password. |
+
+## 4.3 Lecturer
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-LEC-01 | Lecturer shall view a dashboard containing assigned courses, pending submissions, upcoming deadlines, attendance and performance summaries. |
+| FR-LEC-02 | Lecturer shall view only courses assigned to the authenticated lecturer. |
+| FR-LEC-03 | Lecturer shall view students enrolled in assigned courses. |
+| FR-LEC-04 | Lecturer shall upload, update metadata for, and delete course materials within assigned courses. |
+| FR-LEC-05 | Lecturer shall create assignments for assigned courses. |
+| FR-LEC-06 | Lecturer shall configure assignment title, instructions, deadline, maximum marks, publication status and optional attachment. |
+| FR-LEC-07 | Lecturer shall view and download authorized student submissions. |
+| FR-LEC-08 | Lecturer shall grade submissions and optionally provide feedback. |
+| FR-LEC-09 | Lecturer shall create lecture attendance sessions for assigned courses. |
+| FR-LEC-10 | Lecturer shall mark and correct attendance for enrolled students subject to audit rules. |
+| FR-LEC-11 | Lecturer shall create assessment components and enter/update marks for enrolled students. |
+| FR-LEC-12 | Lecturer shall publish or unpublish marks where the workflow requires release control. |
+| FR-LEC-13 | Lecturer shall create, edit and publish course announcements. |
+| FR-LEC-14 | Lecturer shall view course-level attendance, marks and assignment reports. |
+| FR-LEC-15 | Lecturer shall view the timetable for assigned teaching sessions. |
+
+## 4.4 Courses and Enrollment
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-COURSE-01 | The system shall store course code, course name, description, credit hours, academic period and status. |
+| FR-COURSE-02 | Students shall only see courses for which an enrollment record exists. |
+| FR-COURSE-03 | Lecturers shall only manage courses to which they are assigned. |
+| FR-COURSE-04 | The system shall prevent duplicate enrollment for the same student and course offering. |
+| FR-COURSE-05 | The system shall support course status such as active, archived or inactive. |
+
+## 4.5 Materials
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-MAT-01 | Lecturer shall upload supported material files to an assigned course. |
+| FR-MAT-02 | Each material shall have title, description/category, course, uploader, file reference, creation date and visibility status. |
+| FR-MAT-03 | Students shall only access materials belonging to their enrolled courses. |
+| FR-MAT-04 | The system shall validate allowed file types and file size. |
+| FR-MAT-05 | Deletion of a material shall also handle the associated storage object according to retention rules. |
+
+## 4.6 Assignments and Submissions
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-ASG-01 | Lecturer shall create draft assignments before publication. |
+| FR-ASG-02 | Published assignments shall become visible to enrolled students. |
+| FR-ASG-03 | The system shall validate that a deadline is logically valid. |
+| FR-ASG-04 | Student shall be able to submit an allowed file or configured response before the deadline. |
+| FR-ASG-05 | The system shall record submission timestamp and status. |
+| FR-ASG-06 | The system shall prevent unauthorized students from submitting to an assignment. |
+| FR-ASG-07 | The system shall support a configured late-submission policy; default Version 1.0 policy is to block submissions after the deadline unless the lecturer enables late submissions. |
+| FR-ASG-08 | Lecturer shall be able to grade a submission only within their assigned course. |
+| FR-ASG-09 | Grade shall not exceed the assignment maximum mark. |
+| FR-ASG-10 | Student shall see released grades and feedback. |
+
+## 4.7 Attendance
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-ATT-01 | Lecturer shall create an attendance session with course, date, start/end time and optional topic. |
+| FR-ATT-02 | The system shall generate attendance records for enrolled students or otherwise provide a controlled marking interface. |
+| FR-ATT-03 | Lecturer shall mark attendance as Present, Absent, Late or Excused if these statuses are enabled. |
+| FR-ATT-04 | Student shall view their attendance history but shall not edit it. |
+| FR-ATT-05 | The system shall calculate attendance percentage from applicable sessions. |
+| FR-ATT-06 | The system shall prevent duplicate attendance sessions for the same course/time according to configured uniqueness rules. |
+
+## 4.8 Marks
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-MARK-01 | Lecturer shall create assessment components such as CAT, assignment, practical or exam for an assigned course. |
+| FR-MARK-02 | Each assessment shall have a maximum mark and optional weight. |
+| FR-MARK-03 | Lecturer shall enter and update student marks within valid ranges. |
+| FR-MARK-04 | The system shall calculate totals/weighted results according to the configured assessment scheme. |
+| FR-MARK-05 | The system shall support a draft/unpublished state where marks should not yet be visible to students. |
+| FR-MARK-06 | Students shall view only their own released marks. |
+| FR-MARK-07 | The system shall record who changed a mark and when for auditability. |
+
+## 4.9 Announcements and Notifications
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-NOT-01 | Lecturer shall create announcements for assigned courses. |
+| FR-NOT-02 | Students enrolled in the relevant course shall be able to view published announcements. |
+| FR-NOT-03 | The system shall generate in-app notifications for configured events such as new assignments, released marks, new materials and announcements. |
+| FR-NOT-04 | Users shall be able to mark notifications as read. |
+
+## 4.10 Timetable
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-TIME-01 | The system shall store scheduled teaching sessions with course, date/day, start time, end time, room/location and optional recurrence metadata. |
+| FR-TIME-02 | Students shall view timetable entries for enrolled courses. |
+| FR-TIME-03 | Lecturers shall view timetable entries for assigned courses. |
+
+## 4.11 Reports
+
+| **ID** | **Requirement** |
+| --- | --- |
+| FR-REP-01 | Lecturer shall view course attendance summaries. |
+| FR-REP-02 | Lecturer shall view assignment submission summaries. |
+| FR-REP-03 | Lecturer shall view assessment/marks summaries. |
+| FR-REP-04 | The system shall provide student-level and course-level filtering where authorized. |
+| FR-REP-05 | Reports shall not expose data outside the requesting user's authorization scope. |
+
+# 5. Core User Workflows
+
+## 5.1 Login
+
+Open login page
+
+Enter credentials
+
+Authenticate
+
+Resolve user role
+
+Load role-specific dashboard
+
+Record security-relevant login event where supported
+
+## 5.2 Student Assignment Submission
+
+Student opens course
+
+Opens assignment
+
+Reads instructions/deadline
+
+Uploads file
+
+System validates file and deadline
+
+System stores submission
+
+System records timestamp/status
+
+Student receives confirmation
+
+## 5.3 Lecturer Grading
+
+Lecturer opens course
+
+Opens assignment
+
+Views submissions
+
+Opens/downloads submission
+
+Enters mark and feedback
+
+System validates mark
+
+Lecturer saves grade
+
+Grade becomes visible only according to release policy
+
+## 5.4 Attendance
+
+Lecturer opens course
+
+Creates attendance session
+
+System identifies enrolled students
+
+Lecturer marks status
+
+System validates and saves records
+
+Student later views attendance history and percentage
+
+## 5.5 Course Material Upload
+
+Lecturer opens assigned course
+
+Selects Materials
+
+Chooses file
+
+Enters title/description
+
+System validates file type/size
+
+File is stored
+
+Metadata is saved
+
+Material becomes visible to authorized students
+
+## 5.6 Marks Entry
+
+Lecturer selects assessment
+
+System loads enrolled students
+
+Lecturer enters marks
+
+System validates ranges
+
+System saves marks
+
+Totals are recalculated
+
+Lecturer publishes when ready
+
+Students see released results
+
+# 6. Non-Functional Requirements
+
+| **ID** | **Category** | **Requirement** | **Priority** |
+| --- | --- | --- | --- |
+| NFR-SEC-01 | Security | All protected backend endpoints shall require authentication and authorization. | High |
+| NFR-SEC-02 | Security | Passwords shall be handled by a trusted authentication provider; plaintext passwords shall not be stored. | High |
+| NFR-SEC-03 | Security | File access shall use authorization-aware storage policies or controlled signed URLs. | High |
+| NFR-SEC-04 | Security | User input shall be validated server-side and client-side. | High |
+| NFR-SEC-05 | Security | The application shall avoid leaking stack traces, secrets, tokens or sensitive database details to clients. | High |
+| NFR-SEC-06 | Security | Authorization checks shall prevent IDOR-style access to other users' records. | High |
+| NFR-PERF-01 | Performance | Normal dashboard/API interactions should target sub-2-second response time under the expected project load, excluding large file transfer. | Medium |
+| NFR-PERF-02 | Performance | List endpoints shall support pagination/filtering rather than loading unbounded datasets. | High |
+| NFR-REL-01 | Reliability | Database writes for related records shall be transactional where consistency requires it. | High |
+| NFR-REL-02 | Reliability | The system shall show clear recoverable errors and not silently discard user actions. | High |
+| NFR-USE-01 | Usability | The UI shall be responsive and usable on desktop, tablet and mobile screen sizes. | High |
+| NFR-USE-02 | Usability | Forms shall provide validation messages close to the relevant field. | High |
+| NFR-USE-03 | Usability | Destructive actions shall require confirmation where appropriate. | Medium |
+| NFR-MAIN-01 | Maintainability | Frontend and backend shall be modular and organized by feature/domain. | High |
+| NFR-MAIN-02 | Maintainability | API contracts and environment variables shall be documented. | High |
+| NFR-MAIN-03 | Maintainability | Core business logic shall be covered by automated tests. | High |
+| NFR-SCAL-01 | Scalability | The architecture shall allow additional courses/users without redesigning core domain entities. | Medium |
+| NFR-COMP-01 | Compatibility | The web application shall support current versions of major Chromium-based browsers and Firefox/Edge equivalents. | Medium |
+| NFR-A11Y-01 | Accessibility | Interactive controls shall have labels, keyboard focus states and sufficient semantic structure. | Medium |
+
+# 7. Technical Design
+
+## 7.1 Recommended Technology Stack
+
+| **Layer** | **Technology** | **Purpose** |
+| --- | --- | --- |
+| Frontend | React + Vite | Component-based responsive web UI |
+| Styling | CSS Modules or organized CSS; optional UI library | Maintainable responsive styling |
+| Routing | React Router | Client-side route management |
+| State/Data | React state + TanStack Query or equivalent | Server state, caching and async operations |
+| Backend | FastAPI + Python | REST API and business logic |
+| Validation | Pydantic | Request/response validation |
+| Database | Supabase PostgreSQL | Relational persistent data |
+| Authentication | Supabase Auth | Identity and session management |
+| File Storage | Supabase Storage | Materials and submission files |
+| API Documentation | FastAPI OpenAPI/Swagger | Interactive API documentation |
+| Testing | Pytest + FastAPI TestClient; Vitest/React Testing Library | Backend/frontend tests |
+| Version Control | Git + GitHub | Source control and collaboration |
+| Deployment | Any compatible frontend host + FastAPI host + Supabase | Production deployment |
+
+## 7.2 High-Level Architecture
+
+Browser
+   |
+   | HTTPS
+   v
+React Frontend
+   |
+   | REST/JSON + authenticated requests
+   v
+FastAPI Backend
+   |
+   +--> Authentication/session verification
+   |
+   +--> Authorization / business rules
+   |
+   +--> PostgreSQL (Supabase)
+   |
+   +--> Supabase Storage
+   |
+   +--> Notification/event logic
+
+Supabase Auth <--> User identity
+Supabase PostgreSQL <--> Application data
+Supabase Storage <--> Materials/submissions
+
+## 7.3 Architectural Principles
+
+Keep business rules on the backend; do not trust frontend validation.
+
+Use resource ownership and course membership checks on every protected resource.
+
+Keep API routes thin and place reusable business logic in service/domain modules.
+
+Use database constraints for critical uniqueness and integrity rules.
+
+Separate storage objects from database metadata.
+
+Use environment variables for secrets and deployment-specific configuration.
+
+Return consistent JSON error structures from the API.
+
+Avoid direct database access from the browser for protected business operations; route business operations through FastAPI.
+
+# 8. Project Structure
+
+## 8.1 Recommended Repository
+
+smart-lecture-portal/
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   │   ├── auth/
+│   │   │   ├── student/
+│   │   │   └── lecturer/
+│   │   ├── features/
+│   │   │   ├── courses/
+│   │   │   ├── materials/
+│   │   │   ├── assignments/
+│   │   │   ├── attendance/
+│   │   │   ├── marks/
+│   │   │   ├── announcements/
+│   │   │   ├── notifications/
+│   │   │   └── timetable/
+│   │   ├── services/
+│   │   ├── hooks/
+│   │   ├── utils/
+│   │   ├── types/
+│   │   └── main.jsx
+│   ├── public/
+│   ├── tests/
+│   └── package.json
+│
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── db/
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   ├── repositories/
+│   │   └── utils/
+│   ├── tests/
+│   ├── requirements.txt
+│   └── .env.example
+│
+├── docs/
+│   ├── SRS.md
+│   ├── API.md
+│   └── ERD.md
+│
+├── .gitignore
+├── README.md
+└── docker-compose.yml (optional)
+
+# 9. Database Design
+
+The following relational model is the baseline. Exact Supabase-generated auth tables are not duplicated in the application schema. The application profile table should reference the authentication user ID.
+
+| **Table** | **Core Columns** | **Purpose** |
+| --- | --- | --- |
+| profiles | id (PK/auth user id), role, full_name, email, phone, avatar_url, created_at, updated_at | One profile per authenticated user |
+| students | id (PK/FK profiles.id), registration_number, program, year_of_study, status | Student-specific profile data |
+| lecturers | id (PK/FK profiles.id), staff_number, department, title, status | Lecturer-specific profile data |
+| courses | id, course_code, course_name, description, credit_hours, academic_year, semester, status, created_at, updated_at | Course offering |
+| course_lecturers | id, course_id FK, lecturer_id FK, assigned_at | Lecturer-to-course assignment |
+| course_enrollments | id, course_id FK, student_id FK, enrolled_at, status | Student enrollment |
+| materials | id, course_id FK, title, description, storage_path, file_name, mime_type, file_size, uploaded_by FK, published, created_at, updated_at | Course learning resources |
+| assignments | id, course_id FK, title, description, instructions, due_at, max_marks, allow_late, published, attachment_path, created_by FK, created_at, updated_at | Assignment definitions |
+| submissions | id, assignment_id FK, student_id FK, storage_path, file_name, file_size, submitted_at, status, mark, feedback, graded_by FK, graded_at, updated_at | Student submissions |
+| attendance_sessions | id, course_id FK, session_date, start_time, end_time, topic, created_by FK, created_at | Lecture attendance session |
+| attendance_records | id, session_id FK, student_id FK, status, marked_at, marked_by FK, note | Per-student attendance |
+| assessments | id, course_id FK, name, type, max_marks, weight, published, created_by FK, created_at, updated_at | Assessment component |
+| assessment_marks | id, assessment_id FK, student_id FK, mark, feedback, entered_by FK, entered_at, updated_at | Student mark per assessment |
+| announcements | id, course_id FK, title, body, published, published_at, created_by FK, created_at, updated_at | Course communication |
+| notifications | id, user_id FK, type, title, message, link, is_read, created_at, read_at | In-app notifications |
+| timetable_entries | id, course_id FK, day_of_week/date, start_time, end_time, room, notes, created_at, updated_at | Scheduled teaching sessions |
+| audit_logs | id, actor_user_id FK, action, entity_type, entity_id, old_value/json, new_value/json, created_at | Important change history |
+
+## 9.1 Key Relationships
+
+profiles 1---1 students
+profiles 1---1 lecturers
+
+courses 1---* course_lecturers *---1 lecturers
+courses 1---* course_enrollments *---1 students
+
+courses 1---* materials
+courses 1---* assignments
+assignments 1---* submissions *---1 students
+
+courses 1---* attendance_sessions
+attendance_sessions 1---* attendance_records *---1 students
+
+courses 1---* assessments
+assessments 1---* assessment_marks *---1 students
+
+courses 1---* announcements
+profiles 1---* notifications
+courses 1---* timetable_entries
+
+## 9.2 Database Integrity Rules
+
+profiles.role must be one of: student, lecturer.
+
+A student must not have duplicate registration_number.
+
+A lecturer must not have duplicate staff_number.
+
+course_code should be unique per course offering according to the chosen academic-period policy.
+
+course_enrollments should have a unique (course_id, student_id) constraint.
+
+course_lecturers should have a unique (course_id, lecturer_id) constraint.
+
+attendance_records should have a unique (session_id, student_id) constraint.
+
+assessment_marks should have a unique (assessment_id, student_id) constraint.
+
+Marks must be between 0 and max_marks.
+
+Assignment max_marks must be greater than zero.
+
+Attendance status must use an approved enum/value set.
+
+Foreign keys should use deliberate delete behavior; do not cascade-delete academic records without explicit policy.
+
+# 10. REST API Design
+
+The API should be versioned from the start, for example /api/v1. Exact route names may be refined during implementation, but the following contract should remain the baseline.
+
+| **Module** | **Method + Endpoint** | **Purpose** |
+| --- | --- | --- |
+| Auth | POST /api/v1/auth/login | Authenticate |
+| Auth | POST /api/v1/auth/logout | Logout/session termination |
+| Auth | POST /api/v1/auth/password/change | Change password |
+| Profile | GET /api/v1/me | Current user profile |
+| Profile | PATCH /api/v1/me | Update allowed profile fields |
+| Courses | GET /api/v1/courses | List authorized courses |
+| Courses | GET /api/v1/courses/{course_id} | Course details |
+| Courses | GET /api/v1/courses/{course_id}/students | List enrolled students for lecturer |
+| Materials | GET /api/v1/courses/{course_id}/materials | List materials |
+| Materials | POST /api/v1/courses/{course_id}/materials | Create/upload material metadata |
+| Materials | PATCH /api/v1/materials/{material_id} | Update material |
+| Materials | DELETE /api/v1/materials/{material_id} | Delete material |
+| Assignments | GET /api/v1/courses/{course_id}/assignments | List assignments |
+| Assignments | POST /api/v1/courses/{course_id}/assignments | Create assignment |
+| Assignments | GET /api/v1/assignments/{assignment_id} | Assignment details |
+| Assignments | PATCH /api/v1/assignments/{assignment_id} | Update assignment |
+| Assignments | POST /api/v1/assignments/{assignment_id}/submissions | Submit assignment |
+| Submissions | GET /api/v1/assignments/{assignment_id}/submissions | Lecturer list submissions |
+| Submissions | PATCH /api/v1/submissions/{submission_id}/grade | Grade submission |
+| Attendance | POST /api/v1/courses/{course_id}/attendance/sessions | Create session |
+| Attendance | GET /api/v1/courses/{course_id}/attendance/sessions | List sessions |
+| Attendance | POST /api/v1/attendance/sessions/{session_id}/records | Save attendance records |
+| Attendance | GET /api/v1/courses/{course_id}/attendance/me | Student attendance |
+| Marks | POST /api/v1/courses/{course_id}/assessments | Create assessment |
+| Marks | GET /api/v1/courses/{course_id}/assessments | List assessments |
+| Marks | PUT /api/v1/assessments/{assessment_id}/marks | Bulk/upsert marks |
+| Marks | GET /api/v1/courses/{course_id}/marks/me | Student marks |
+| Announcements | GET /api/v1/courses/{course_id}/announcements | List announcements |
+| Announcements | POST /api/v1/courses/{course_id}/announcements | Create announcement |
+| Notifications | GET /api/v1/notifications | List notifications |
+| Notifications | PATCH /api/v1/notifications/{id}/read | Mark notification read |
+| Timetable | GET /api/v1/timetable | Get authorized timetable |
+| Reports | GET /api/v1/courses/{course_id}/reports/attendance | Attendance report |
+| Reports | GET /api/v1/courses/{course_id}/reports/performance | Performance report |
+
+## 10.1 API Conventions
+
+Use JSON for normal request/response bodies.
+
+Use multipart/form-data for file upload endpoints.
+
+Use ISO 8601 timestamps in UTC or a documented timezone strategy; display localized times in the UI.
+
+Use consistent HTTP status codes: 200/201 for success, 400 for validation, 401 for unauthenticated, 403 for unauthorized, 404 for not found, 409 for conflict, 422 for schema validation where applicable, and 500 only for unexpected server errors.
+
+Return a consistent error shape such as {code, message, details} without exposing internal stack traces.
+
+Paginate potentially large collections.
+
+Document every endpoint with OpenAPI schemas and authorization requirements.
+
+# 11. Frontend Design
+
+## 11.1 Public Pages
+
+Landing/Home
+
+Login
+
+Password reset/change flow
+
+Optional public project/about page
+
+## 11.2 Student Pages
+
+Student Dashboard
+
+My Courses
+
+Course Details
+
+Materials
+
+Assignments
+
+Assignment Details/Submission
+
+Attendance
+
+Marks/Results
+
+Announcements
+
+Notifications
+
+Timetable
+
+Profile
+
+Settings
+
+## 11.3 Lecturer Pages
+
+Lecturer Dashboard
+
+My Courses
+
+Course Details
+
+Students
+
+Materials Management
+
+Assignment Management
+
+Submission Review/Grading
+
+Attendance Management
+
+Marks Management
+
+Announcements
+
+Reports
+
+Timetable
+
+Profile
+
+Settings
+
+## 11.4 UI Rules
+
+Use a consistent application shell with sidebar/top navigation, page title, breadcrumbs where useful, content area and user menu.
+
+Use loading, empty, success and error states for asynchronous screens.
+
+Use confirmation dialogs for destructive actions.
+
+Do not display controls that the current role cannot use.
+
+Do not rely on hidden buttons as a security mechanism; backend authorization remains mandatory.
+
+Use accessible labels and keyboard-friendly interactive components.
+
+Use pagination or infinite loading for large student/submission lists.
+
+Provide search/filter/sort where lists can become large.
+
+# 12. Security Design
+
+Authentication is required for all private academic data.
+
+Authorization must be enforced server-side for every resource.
+
+Students can access only their own private academic records and courses in which they are enrolled.
+
+Lecturers can access academic data only for courses assigned to them.
+
+Use least privilege for database/storage access.
+
+Never expose service-role credentials or database secrets to frontend code.
+
+Use HTTPS in production.
+
+Validate uploaded file MIME type/extension and size; do not trust filename alone.
+
+Store files in private buckets when they contain student submissions or otherwise sensitive data; issue authorized/signed access as appropriate.
+
+Protect against IDOR by checking ownership/membership before returning a resource.
+
+Protect against injection using parameterized queries/ORM/query builders and validated inputs.
+
+Use CSRF protection if cookie-based authentication is used in a cross-site configuration; otherwise follow the chosen token architecture correctly.
+
+Implement rate limiting or abuse protection on authentication and high-risk endpoints where practical.
+
+Log security-relevant events without logging passwords, tokens or sensitive secrets.
+
+Keep dependencies updated and scan for known vulnerabilities.
+
+Use environment variables for secrets and provide .env.example without real credentials.
+
+# 13. Validation and Business Rules
+
+| **Area** | **Rules** |
+| --- | --- |
+| Email | Must be syntactically valid; normalize according to authentication provider policy. |
+| Password | Must meet authentication provider security policy; never return it in API responses. |
+| Course Code | Required and unique according to course-offering policy. |
+| Assignment | Title and due date required; max_marks > 0; due date must follow configured rules. |
+| Submission | Only authorized enrolled student; accepted file types and maximum size enforced; deadline policy enforced. |
+| Marks | 0 <= mark <= max_marks; only authorized lecturer may enter/edit. |
+| Attendance | Only enrolled students receive records; valid status values only. |
+| Announcement | Title/body required; publication state controls visibility. |
+| Material | Title/file required; file type and size restrictions enforced. |
+| Profile | Users may update only fields permitted by role and security policy. |
+
+# 14. File and Storage Design
+
+Use separate logical storage areas/buckets for learning materials and student submissions. Database records store metadata and storage paths; the actual binary files remain in object storage.
+
+Example storage layout:
+materials/
+  {course_id}/{material_id}/{filename}
+
+submissions/
+  {course_id}/{assignment_id}/{student_id}/{submission_id}/{filename}
+
+Rules:
+- Do not expose private bucket URLs permanently.
+- Verify user authorization before issuing a download/access URL.
+- Sanitize filenames and never use user-provided paths directly.
+- Enforce maximum file size.
+- Restrict file extensions/MIME types to the supported list.
+- Consider virus/malware scanning before production use.
+
+Suggested initial allowed types: PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP, subject to institutional requirements. The implementation should make this list configurable rather than hard-coded throughout the frontend.
+
+# 15. Audit and Data Integrity
+
+Record important changes to marks, attendance corrections, assignment grading and other sensitive academic records.
+
+Audit records should contain actor, action, entity type, entity ID, timestamp and relevant before/after values where appropriate.
+
+Do not allow ordinary users to edit audit history.
+
+Use database constraints and transactions for academic operations requiring consistency.
+
+Avoid destructive deletion of academic history when a soft-delete/archive state is more appropriate.
+
+# 16. Error Handling
+
+| **Situation** | **Expected UI/API Behavior** |
+| --- | --- |
+| Unauthenticated | Redirect/return 401 and ask user to authenticate. |
+| Unauthorized resource | Return 403 or 404 according to security policy; do not leak existence of protected resources unnecessarily. |
+| Not found | Return 404 with user-friendly message. |
+| Validation failure | Return structured field-level errors. |
+| Duplicate record | Return 409 conflict with actionable message. |
+| File too large/invalid type | Reject upload with clear allowed limits/types. |
+| Network/server error | Show retry-friendly message; log technical detail server-side. |
+| Expired session | Prompt user to sign in again and avoid losing unsaved work where possible. |
+
+# 17. Testing Strategy
+
+## 17.1 Test Levels
+
+Unit tests: validation, calculations, business services and utility functions.
+
+Integration tests: API + database interactions, authorization and workflows.
+
+Frontend component tests: forms, tables, dialogs, loading/error states.
+
+End-to-end tests: critical student and lecturer journeys.
+
+Security tests: role isolation, IDOR attempts, unauthorized file access and input validation.
+
+Performance smoke tests: dashboard/list endpoints and common queries.
+
+## 17.2 Critical Acceptance Tests
+
+| **ID** | **Acceptance Test** |
+| --- | --- |
+| AT-01 | Student can log in and reach student dashboard. |
+| AT-02 | Lecturer can log in and reach lecturer dashboard. |
+| AT-03 | Student cannot access lecturer-only endpoint. |
+| AT-04 | Lecturer cannot access a course that is not assigned to them. |
+| AT-05 | Student cannot view another student's marks. |
+| AT-06 | Student cannot submit to a course they are not enrolled in. |
+| AT-07 | Lecturer can create an assignment for an assigned course. |
+| AT-08 | Student can submit a valid assignment before deadline. |
+| AT-09 | Invalid/oversized submission is rejected. |
+| AT-10 | Lecturer can grade submission with valid mark. |
+| AT-11 | Mark above maximum is rejected. |
+| AT-12 | Student sees released mark but not unpublished mark. |
+| AT-13 | Lecturer can create attendance session and mark students. |
+| AT-14 | Student can view attendance percentage. |
+| AT-15 | Student can download authorized course material. |
+| AT-16 | Student cannot access another course's private material. |
+| AT-17 | Lecturer can publish announcement and enrolled students can see it. |
+| AT-18 | Important events generate notifications. |
+| AT-19 | Duplicate enrollment/attendance/assessment mark records are prevented. |
+| AT-20 | Core reports show consistent totals with source records. |
+
+# 18. Deployment and Environment Design
+
+Development:
+- React/Vite frontend
+- Local FastAPI backend
+- Supabase project/environment
+- .env files excluded from Git
+
+Production:
+User Browser
+   -> Frontend Hosting (HTTPS)
+   -> FastAPI API (HTTPS)
+   -> Supabase Auth/PostgreSQL/Storage
+
+Recommended environment separation:
+- Development
+- Production
+
+Never commit real secrets, service-role keys, database passwords, or production credentials.
+
+## 18.1 Environment Variables
+
+Frontend example:
+VITE_API_BASE_URL=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+
+Backend example:
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=        # backend only; never frontend
+DATABASE_URL=                     # if direct DB access is used
+CORS_ORIGINS=
+ENVIRONMENT=
+
+Use the minimum required credentials for each component. If Supabase Auth is used directly for authentication, ensure the FastAPI backend verifies the authenticated identity and does not blindly trust client-supplied user IDs.
+
+# 19. Git, CI/CD and Development Workflow
+
+Use Git with feature branches for non-trivial changes.
+
+Protect the main branch.
+
+Require tests/lint checks before merging when possible.
+
+Use pull requests for reviewed changes even when working alone, if practical, to preserve engineering discipline.
+
+Run frontend lint/type/test checks and backend tests in CI.
+
+Build the frontend in CI to catch production build failures.
+
+Do not deploy if critical tests fail.
+
+Keep database/schema changes versioned and reproducible.
+
+Document deployment steps in README.md.
+
+## 19.1 Suggested Commit Style
+
+feat: add assignment creation
+fix: prevent marks above maximum
+test: add attendance authorization tests
+refactor: separate course service
+docs: update API specification
+
+# 20. Development Roadmap
+
+| **Phase** | **Name** | **Deliverables** |
+| --- | --- | --- |
+| Phase 0 | Project foundation | Repository, frontend/backend scaffolding, environment setup, coding standards, CI basics |
+| Phase 1 | Authentication & profiles | Supabase Auth, role resolution, protected routes, profile data |
+| Phase 2 | Courses & enrollment | Course model, lecturer assignment, student enrollment, course pages |
+| Phase 3 | Materials | Storage integration, upload/download, access control |
+| Phase 4 | Assignments | Assignment CRUD, student submission, file handling, deadlines |
+| Phase 5 | Grading & marks | Assessments, marks, release rules, calculations |
+| Phase 6 | Attendance | Sessions, records, calculations, reports |
+| Phase 7 | Announcements & notifications | Course announcements, in-app notifications |
+| Phase 8 | Dashboards & reports | Role dashboards, filters, reporting views |
+| Phase 9 | Hardening | Security review, tests, validation, performance, accessibility |
+| Phase 10 | Deployment & documentation | Production deployment, README, API docs, user guide, final demonstration |
+
+# 21. Overall Definition of Done
+
+Both roles can authenticate securely.
+
+Role-based frontend routing and backend authorization work correctly.
+
+Students can access only their own and their enrolled-course data.
+
+Lecturers can access only their assigned-course data.
+
+Courses and enrollments are functional.
+
+Materials can be securely uploaded and accessed.
+
+Assignments can be created, published, submitted and graded.
+
+Attendance can be recorded and summarized.
+
+Marks can be entered, validated, calculated and released.
+
+Announcements and notifications function.
+
+Dashboards display real data rather than hard-coded placeholders.
+
+Critical API and UI tests pass.
+
+No known critical security issue remains.
+
+Production environment variables and deployment instructions are documented.
+
+Database schema and API documentation are synchronized with implementation.
+
+The system has seed/demo data for final presentation without exposing real student information.
+
+# 22. Instructions for an AI Coding Assistant
+
+This section is intended to be copied/read by an AI coding assistant. The assistant must treat the SRS as the authoritative project specification.
+
+Do not add an Administrator role unless the project owner explicitly requests it.
+
+Do not add major features outside Version 1.0 scope without explicit approval.
+
+Implement the project incrementally by phase; do not generate the entire application in one uncontrolled change.
+
+Before coding a feature, identify its requirements, database entities, API endpoints, authorization rules, frontend pages, validation and tests.
+
+Never put secrets in source code.
+
+Never rely only on frontend checks for authorization.
+
+Every protected resource must enforce server-side authorization.
+
+Use the database as the source of truth for persistent academic data.
+
+Do not hard-code dashboard statistics or academic records.
+
+Use reusable components and services instead of duplicated logic.
+
+Keep API schemas, database models and frontend types consistent.
+
+Add tests for each important business rule and authorization boundary.
+
+When a requirement is ambiguous, choose the simplest implementation consistent with this document and flag the ambiguity instead of inventing a large feature.
+
+Do not silently change database structure or API contracts; document and explain migrations/contract changes.
+
+Do not delete academic records merely to simplify implementation.
+
+Maintain clear error handling and loading/empty states.
+
+After each phase, run tests and verify the acceptance criteria before proceeding.
+
+Keep the application usable without AI features; AI is not a required dependency for Version 1.0.
+
+# 23. Risks and Mitigation
+
+| **Risk** | **Impact** | **Mitigation** |
+| --- | --- | --- |
+| Scope creep | High | Use this SRS as baseline; implement phases in order. |
+| Weak authorization | High | Centralize backend authorization and test role boundaries. |
+| File storage/security issues | High | Use private storage, validation and signed/authorized access. |
+| Inconsistent marks | High | Use validation, constraints, transactions and audit logs. |
+| Large datasets | Medium | Pagination, indexing and filtered queries. |
+| Lost work during deployment | High | Backups/versioned migrations and separate environments. |
+| Overengineering | Medium | Prefer simple architecture and only required features. |
+| AI coding assistant changes scope | Medium | Keep SRS in repository and explicitly require compliance. |
+
+# 24. Assumptions
+
+The project is initially for one institution or academic environment.
+
+Only Student and Lecturer roles are application users in Version 1.0.
+
+Initial account/course/enrollment provisioning may be performed through controlled setup/seed data or a future administration process.
+
+The project has reliable internet access for normal operation.
+
+Supabase is acceptable as the managed PostgreSQL/Auth/Storage platform.
+
+The institution's exact grading scale and attendance policy can be configured later without redesigning the core architecture.
+
+The application is not intended to replace the institution's official student information system unless integration is explicitly added.
+
+# 25. Pre-Coding Checklist
+
+Confirm project title and problem statement with supervisor.
+
+Confirm that Student and Lecturer are the only Version 1.0 roles.
+
+Confirm grading and attendance rules with the academic context.
+
+Confirm supported file types and size limits.
+
+Confirm whether timetable data is manually seeded or entered through the lecturer workflow.
+
+Create Supabase project and separate development/production environments if possible.
+
+Create Git repository and initial README.
+
+Create database migration/schema plan.
+
+Create API contract/OpenAPI baseline.
+
+Create frontend route map.
+
+Create initial seed/demo dataset.
+
+Begin Phase 0 only after the above decisions are recorded.
+
+# Appendix A — Recommended Initial Demo Data
+
+| **Entity** | **Example** |
+| --- | --- |
+| Student | Demo Student / STU001 |
+| Lecturer | Demo Lecturer / LEC001 |
+| Course | CIT 3253 - Network Administration |
+| Course | CIT 3254 - Database Systems |
+| Assignment | Assignment 1 - Introduction |
+| Assessment | CAT 1 |
+| Attendance | Three sample lecture sessions |
+| Material | Sample PDF lecture notes |
+| Announcement | Sample course announcement |
+
+# Appendix B — Key Terms
+
+| **Term** | **Meaning** |
+| --- | --- |
+| RBAC | Role-Based Access Control |
+| REST | Representational State Transfer API style |
+| CRUD | Create, Read, Update, Delete |
+| SRS | Software Requirements Specification |
+| API | Application Programming Interface |
+| JWT | JSON Web Token, if used by the selected authentication architecture |
+| RLS | Row Level Security, particularly relevant to Supabase/PostgreSQL |
+| MVP | Minimum Viable Product |
+| IDOR | Insecure Direct Object Reference; an authorization vulnerability |
+
+# Appendix C — Final Implementation Principle
+
+The Smart Lecture Portal should be built as a reliable academic management and learning-support system first. Features should be added because they solve a defined academic workflow, not simply because they are technically interesting. The first successful release should prioritize correctness, security, authorization, maintainability and demonstrable end-to-end workflows.
+
+Smart Lecture Portal — SRS & Technical Design — Version 1.0
