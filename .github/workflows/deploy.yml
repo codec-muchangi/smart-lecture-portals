@@ -41,7 +41,7 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-frontend-dist
           path: frontend/dist
