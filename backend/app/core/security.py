@@ -8,27 +8,40 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.errors import Forbidden, NotFound, Unauthenticated
 from app.db.client import get_supabase
+from app.repositories import profile_repository as repo
 from app.schemas.common import CurrentUser
 
 bearer = HTTPBearer(auto_error=False)
 
 
-def get_current_user(cred: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> CurrentUser:
+def get_access_token(cred: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]) -> str:
     if cred is None:
         raise Unauthenticated("Authentication required")
+    return cred.credentials
+
+
+def get_current_user(token: Annotated[str, Depends(get_access_token)]) -> CurrentUser:
+    """Authenticate the bearer token, then load identity from OUR tables (never from the request body).
+
+    Rejects: bad/expired token (401), no profile / no role row / inactive account (403).
+    """
     sb = get_supabase()
     try:
-        auth_user = sb.auth.get_user(cred.credentials).user
+        auth_user = sb.auth.get_user(token).user  # Supabase verifies signature and expiry
     except Exception as exc:
         raise Unauthenticated("Invalid or expired session") from exc
     if auth_user is None:
         raise Unauthenticated("Invalid or expired session")
-    rows = (
-        sb.table("profiles").select("id,role,full_name,email").eq("id", auth_user.id).limit(1).execute().data
-    )
-    if not rows:
+
+    profile = repo.get_profile(auth_user.id)
+    if profile is None:
         raise Forbidden("No profile for this account")
-    return CurrentUser(**rows[0])
+    details = repo.get_role_details(profile["role"], profile["id"])
+    if details is None or details.get("status") != "active":
+        raise Forbidden("Account is not active")
+    return CurrentUser(
+        id=profile["id"], role=profile["role"], full_name=profile["full_name"], email=profile["email"]
+    )
 
 
 CurrentUserDep = Annotated[CurrentUser, Depends(get_current_user)]

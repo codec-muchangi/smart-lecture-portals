@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     max_upload_mb: int = 25
     allowed_file_extensions: str = "pdf,docx,pptx,xlsx,csv,png,jpg,jpeg,zip"
+    password_reset_redirect_url: str = "http://localhost:5173/reset-password"
+    login_rate_limit: int = 10  # attempts per window, per client IP
+    login_rate_window_seconds: int = 60
+    reset_rate_limit: int = 5
+    reset_rate_window_seconds: int = 900
 
     @property
     def cors_origin_list(self) -> list[str]:
