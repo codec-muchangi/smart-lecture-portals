@@ -37,6 +37,14 @@ class ValidationFailed(AppError):
     status_code, code = 400, "VALIDATION_ERROR"
 
 
+class RateLimited(AppError):
+    status_code, code = 429, "RATE_LIMITED"
+
+
+class ServiceUnavailable(AppError):
+    status_code, code = 503, "SERVICE_UNAVAILABLE"
+
+
 def _body(code: str, message: str, details: dict | None = None) -> dict:
     return {"code": code, "message": message, "details": details or {}}
 
@@ -44,7 +52,10 @@ def _body(code: str, message: str, details: dict | None = None) -> dict:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error(_: Request, exc: AppError):
-        return JSONResponse(_body(exc.code, exc.message, exc.details), status_code=exc.status_code)
+        headers = {"Retry-After": str(exc.details["retry_after"])} if isinstance(exc, RateLimited) else None
+        return JSONResponse(
+            _body(exc.code, exc.message, exc.details), status_code=exc.status_code, headers=headers
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_: Request, exc: RequestValidationError):
