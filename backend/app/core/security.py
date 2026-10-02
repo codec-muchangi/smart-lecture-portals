@@ -6,8 +6,9 @@ from uuid import UUID
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.errors import Forbidden, NotFound, Unauthenticated
+from app.core.errors import Conflict, Forbidden, NotFound, Unauthenticated
 from app.db.client import get_supabase
+from app.repositories import course_repository as course_repo
 from app.repositories import profile_repository as repo
 from app.schemas.common import CurrentUser
 
@@ -60,24 +61,33 @@ require_student = require_role("student")
 require_lecturer = require_role("lecturer")
 
 
-def _exists(table: str, **eq) -> bool:
-    q = get_supabase().table(table).select("id").limit(1)
-    for k, v in eq.items():
-        q = q.eq(k, str(v))
-    return bool(q.execute().data)
+def assert_course_access(user: CurrentUser, course_id: UUID) -> dict:
+    """Central course-scope rule, reused by every course-owned resource in later phases.
 
-
-def assert_course_access(user: CurrentUser, course_id: UUID) -> None:
-    """Lecturer must be assigned; student must be actively enrolled. 404 avoids existence leaks."""
-    if user.role == "lecturer":
-        ok = _exists("course_lecturers", course_id=course_id, lecturer_id=user.id)
-    else:
-        ok = _exists("course_enrollments", course_id=course_id, student_id=user.id, status="active")
-    if not ok:
+    - lecturer: must be assigned to the course
+    - student: must be actively enrolled, and the course must not be inactive
+    Anything else raises 404 (not 403) so the existence of other courses is not revealed.
+    Returns the course row so callers need no second lookup.
+    """
+    course = course_repo.get_course(course_id)
+    if course is None:
         raise NotFound("Course not found")
+    if user.role == "lecturer":
+        allowed = course_repo.is_assigned(course_id, user.id)
+    else:
+        allowed = course["status"] != "inactive" and course_repo.is_enrolled(course_id, user.id)
+    if not allowed:
+        raise NotFound("Course not found")
+    return course
 
 
-def assert_course_lecturer(user: CurrentUser, course_id: UUID) -> None:
+def assert_course_lecturer(user: CurrentUser, course_id: UUID) -> dict:
     if user.role != "lecturer":
         raise Forbidden("Lecturer access required")
-    assert_course_access(user, course_id)
+    return assert_course_access(user, course_id)
+
+
+def ensure_course_writable(course: dict) -> None:
+    """Archived/inactive courses are read-only history: block new materials, assignments, marks, etc."""
+    if course["status"] != "active":
+        raise Conflict("This course is not active, so it can no longer be changed")

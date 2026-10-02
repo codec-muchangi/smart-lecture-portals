@@ -77,3 +77,17 @@ erDiagram
 6. `materials.category` and `assignments.closed` added to satisfy FR-MAT-02 and “close” in §2.1.
 7. Timestamps stored UTC (`timestamptz`); UI localises (Africa/Nairobi default configurable).
 8. RLS enabled with no policies: the browser never touches tables directly; FastAPI (service role) is the only data path (SRS §7.3).
+
+## Migration 0003 (Phase 1) — identity integrity
+- `profiles.id` and `profiles.role` are immutable (trigger), so role escalation is impossible even if application code has a bug.
+- `students` / `lecturers` rows can attach only to a profile with the matching role (trigger).
+- `provision_profile(...)` creates the profile and role row in one transaction; execute is granted to `service_role` only.
+- Supabase Auth user creation cannot join a SQL transaction, so `provisioning_service` creates the auth user first and **deletes it if the function fails** (no orphaned logins).
+
+## Migration 0004 (Phase 2) — courses & enrollment integrity
+- **Security fix:** the views from 0002 now use `security_invoker = true` and are revoked from `anon`/`authenticated`. Views run with their owner's rights and otherwise bypass RLS; Supabase exposes public-schema objects to the API roles by default.
+- `v_course_roster` (security invoker, service-role only): joins enrollments, students and profiles so the roster can be filtered, searched and paginated in the database. Contains no phone numbers.
+- `trg_enrollment_rules`: enrollment `course_id`/`student_id` are immutable; a row can become `active` only for an `active` course and an `active` student. Duplicates remain blocked by `UNIQUE(course_id, student_id)`.
+- `trg_course_lecturer_rules`: assignment keys immutable; only `active` lecturers can be assigned.
+- Withdrawal is a status change (`withdrawn`), never a delete, so marks/attendance/submissions are never orphaned. Re-enrolling reactivates the same row.
+- Policy decisions: archived courses stay visible (read-only history) via `status=archived`; inactive courses are hidden from students; new academic writes in later phases must call `ensure_course_writable` (active courses only).

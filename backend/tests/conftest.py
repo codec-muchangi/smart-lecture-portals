@@ -20,6 +20,34 @@ COURSE_A, COURSE_B = str(UUID(int=100)), str(UUID(int=101))
 PASSWORD = "Passw0rd123"
 
 
+def add_student(db, n: int, name: str, reg: str, status: str = "active", enroll_in: str | None = None) -> str:
+    """Add an extra student (and optionally enroll them) to the fake database."""
+    from uuid import UUID as _U
+
+    uid = str(_U(int=1000 + n))
+    db.auth_users[uid] = {"email": f"s{n}@demo.test", "password": PASSWORD}
+    db.tables["profiles"].append(
+        {
+            "id": uid,
+            "role": "student",
+            "full_name": name,
+            "email": f"s{n}@demo.test",
+            "phone": "0700000000",
+            "avatar_url": None,
+            "created_at": "2026-09-01T00:00:00+00:00",
+            "updated_at": "2026-09-01T00:00:00+00:00",
+        }
+    )
+    db.tables["students"].append(
+        {"id": uid, "registration_number": reg, "program": "BSc CS", "year_of_study": 2, "status": status}
+    )
+    if enroll_in:
+        db.tables["course_enrollments"].append(
+            {"id": f"e{n}", "course_id": enroll_in, "student_id": uid, "status": "active"}
+        )
+    return uid
+
+
 def bearer(uid: str) -> dict:
     return {"Authorization": f"Bearer tok-{uid}"}
 
@@ -95,14 +123,24 @@ def db(monkeypatch):
     fake.tables["lecturers"] = [
         {"id": L1, "staff_number": "LEC001", "department": "CS", "title": "Dr.", "status": "active"}
     ]
+
+    def course(cid, code, name, status="active", year="2026/2027", semester="Semester 1"):
+        return {
+            "id": cid,
+            "course_code": code,
+            "course_name": name,
+            "description": None,
+            "credit_hours": 3,
+            "academic_year": year,
+            "semester": semester,
+            "status": status,
+            "created_at": now,
+            "updated_at": now,
+        }
+
     fake.tables["courses"] = [
-        {
-            "id": COURSE_A,
-            "course_code": "CIT 3253",
-            "course_name": "Network Administration",
-            "status": "active",
-        },
-        {"id": COURSE_B, "course_code": "CIT 3254", "course_name": "Database Systems", "status": "active"},
+        course(COURSE_A, "CIT 3253", "Network Administration"),
+        course(COURSE_B, "CIT 3254", "Database Systems"),
     ]
     fake.tables["course_lecturers"] = [{"id": "cl1", "course_id": COURSE_A, "lecturer_id": L1}]
     fake.tables["course_enrollments"] = [

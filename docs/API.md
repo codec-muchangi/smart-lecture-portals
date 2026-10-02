@@ -18,26 +18,33 @@ Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = 
 |---|---|---|---|
 | GET | `/health` | public | Liveness (outside `/api/v1`) |
 
-## Auth (thin wrappers over Supabase Auth)
+## Auth (thin wrappers over Supabase Auth) — implemented in Phase 1
 | Method | Path | Access | Request | Response |
 |---|---|---|---|---|
-| POST | `/auth/login` | public | `{email,password}` | `{access_token,refresh_token,expires_in,user:{id,role,full_name}}`; 401 generic message on failure; rate-limited |
-| POST | `/auth/logout` | A | – | 204 |
-| POST | `/auth/password/change` | A | `{current_password,new_password}` | 204; 400 if current wrong |
-| POST | `/auth/password/reset` | public | `{email}` | 202 always (no account enumeration) |
+| POST | `/auth/login` | public, rate-limited (10/min/IP) | `{email,password}` | 200 `{access_token,refresh_token,token_type,expires_in,user:{id,role,full_name}}`. 401 identical message for wrong password and unknown email; 403 if no profile or account not `active` (no tokens issued); 503 if the auth provider is down; 429 + `Retry-After` when limited |
+| POST | `/auth/logout` | A | – | 204; revokes the user's refresh tokens at the provider; the access token is rejected on later calls |
+| POST | `/auth/password/change` | A | `{current_password,new_password}` | 204; 400 with `details.current_password` if wrong; 400 with `details.new_password` if policy fails (≥8 chars, letters+digits, different from current) or the provider rejects it |
+| POST | `/auth/password/reset` | public, rate-limited (5/15 min/IP) | `{email}` | 202 always, same body for known/unknown emails (no account enumeration) |
 
-## Profile
+Note: the React app currently signs in directly with Supabase; the backend still authenticates every request from the bearer token. `/auth/login` exists for API clients and the SRS contract.
+
+## Profile — implemented in Phase 1
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/me` | A | Profile + role-specific block (student/lecturer) |
-| PATCH | `/me` | A | Allowed: `full_name, phone, avatar_url`. Role, email, reg/staff numbers are not editable |
+| GET | `/me` | A | `{id,role,full_name,email,phone,avatar_url,created_at,updated_at,details}`; `details` = student (`registration_number,program,year_of_study,status`) or lecturer (`staff_number,department,title,status`) |
+| PATCH | `/me` | A | Allowed: `full_name` (2-120, no control chars), `phone` (7-20 chars: digits, space, `+ - ( )`; `null` clears), `avatar_url` (https only; `null` clears). Any other field (role, email, id, registration/staff number, status) ⇒ 422. Empty body ⇒ 400. Only changed fields are written and audited (`profile.update`, old/new values) |
 
-## Courses
+## Courses & enrollment — implemented in Phase 2
+Course scope rule (applies to every course-owned resource in later phases): lecturer ⇒ assigned to the course; student ⇒ **active** enrollment and course not `inactive`. Otherwise **404** (never 403) so other courses' existence is not revealed. A wrong-role call on a lecturer-only endpoint is **403**.
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/courses` | A | Only enrolled (S) / assigned (L) courses. Filters: `status, q, academic_year, semester` |
-| GET | `/courses/{course_id}` | S,L | Details + lecturers list |
-| GET | `/courses/{course_id}/students` | L | Enrolled students; `q`, pagination |
+| GET | `/courses` | A | Paginated `{items,page,page_size,total}`. Only the caller's courses. Filters: `status` = `active` (default) \| `archived` \| `inactive` \| `all`; `q` (code/name, case-insensitive); `academic_year`; `semester`; `page`, `page_size` (≤100). Inactive courses never appear for students |
+| GET | `/courses/{course_id}` | S,L | Course fields + `lecturers:[{id,full_name,email,title,department}]`. `enrolled_count` (active) is returned to lecturers only (null for students) |
+| PATCH | `/courses/{course_id}` | L | **Description only** (≤2000 chars; blank clears). Code, name, credits, period, status ⇒ 422 (owned by academic setup). Audited as `course.update` |
+| GET | `/courses/{course_id}/students` | L | Roster, paginated, sorted by name. `status` = `active` (default) \| `withdrawn` \| `completed` \| `all`; `q` searches name, registration number, email. Fields: `student_id, full_name, email, registration_number, program, year_of_study, enrollment_status, enrolled_at` (no phone/avatar) |
+
+Course creation, lecturer assignment and student enrollment are **not API endpoints** in v1.0: the SRS has no administrator role and treats provisioning as controlled setup (SRS 1.3, 24). They are done with `scripts/manage_academic.py` (see `docs/PHASE2_BACKEND.md`).
 
 ## Materials
 | Method | Path | Access | Notes |

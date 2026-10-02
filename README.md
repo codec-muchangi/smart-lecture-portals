@@ -42,6 +42,12 @@ scripts/   check_structure.py, check_sql.py, seed_demo.py
    ```
 4. Demo data (dev only): set `DEMO_PASSWORD`, `DATABASE_URL` in `backend/.env` and run `python scripts/seed_demo.py`.
 
+## Creating accounts (no self-signup in v1.0)
+`cd backend` → activate venv → `python ../scripts/create_user.py --role student --email … --name … --registration-number …` (see `docs/PHASE1_BACKEND.md`).
+
+## Courses and enrollment (no admin UI in v1.0)
+`cd backend` → activate venv → `python ../scripts/manage_academic.py --help` (create courses, assign lecturers, enroll/withdraw students, bulk CSV enroll, archive courses). See `docs/PHASE2_BACKEND.md`.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py
