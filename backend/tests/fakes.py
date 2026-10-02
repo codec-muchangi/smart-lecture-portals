@@ -11,6 +11,9 @@ UNIQUE = {
     "profiles": [("id",), ("email",)],
     "students": [("id",), ("registration_number",)],
     "lecturers": [("id",), ("staff_number",)],
+    "courses": [("course_code", "academic_year", "semester")],
+    "course_enrollments": [("course_id", "student_id")],
+    "course_lecturers": [("course_id", "lecturer_id")],
 }
 
 
@@ -38,8 +41,20 @@ class Query:
         self.filters.append(lambda r: str(r.get(col)) in sv)
         return self
 
-    def or_(self, _expr):
-        return self  # text search is not exercised in unit tests
+    def neq(self, col, val):
+        self.filters.append(lambda r: str(r.get(col)) != str(val))
+        return self
+
+    def or_(self, expr):
+        """PostgREST or=(col.ilike.%x%,col2.ilike.%x%): only ilike is used by the app."""
+        clauses = []
+        for part in expr.split(","):
+            col, op, val = part.split(".", 2)
+            assert op == "ilike", f"fake supports ilike only, got {op}"
+            needle = val.strip("%").lower()
+            clauses.append(lambda r, col=col, needle=needle: needle in str(r.get(col) or "").lower())
+        self.filters.append(lambda r: any(c(r) for c in clauses))
+        return self
 
     def order(self, col, desc=False):
         self._order = (col, desc)
@@ -70,7 +85,7 @@ class Query:
         return self
 
     def _matching(self):
-        return [r for r in self.db.tables.setdefault(self.table, []) if all(f(r) for f in self.filters)]
+        return [r for r in self.db.rows_for(self.table) if all(f(r) for f in self.filters)]
 
     def execute(self):
         rows = self.db.tables.setdefault(self.table, [])
@@ -214,6 +229,27 @@ class FakeSupabase:
 
     def table(self, name):
         return Query(self, name)
+
+    def rows_for(self, name):
+        if name == "v_course_roster":  # mirrors the SQL view in migration 0004
+            students = {r["id"]: r for r in self.tables.get("students", [])}
+            profiles = {r["id"]: r for r in self.tables.get("profiles", [])}
+            return [
+                {
+                    "course_id": e["course_id"],
+                    "student_id": e["student_id"],
+                    "enrollment_status": e["status"],
+                    "enrolled_at": e.get("enrolled_at", "2026-09-01T00:00:00+00:00"),
+                    "registration_number": students[e["student_id"]]["registration_number"],
+                    "program": students[e["student_id"]]["program"],
+                    "year_of_study": students[e["student_id"]]["year_of_study"],
+                    "full_name": profiles[e["student_id"]]["full_name"],
+                    "email": profiles[e["student_id"]]["email"],
+                }
+                for e in self.tables.get("course_enrollments", [])
+                if e["student_id"] in students and e["student_id"] in profiles
+            ]
+        return self.tables.setdefault(name, [])
 
     def rpc(self, name, params):
         return Rpc(self, name, params)

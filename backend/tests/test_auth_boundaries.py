@@ -4,7 +4,12 @@ import pytest
 
 from app.core import security
 from app.core.errors import Forbidden, NotFound
-from tests.conftest import LECTURER, STUDENT
+from app.schemas.common import CurrentUser
+from tests.conftest import COURSE_A, COURSE_B, L1, LECTURER, STUDENT
+
+LECTURER_USER = CurrentUser(
+    id=UUID(L1), role="lecturer", full_name="Demo Lecturer", email="lecturer@demo.test"
+)
 
 
 def test_health(client):
@@ -23,16 +28,14 @@ def test_require_role_blocks_wrong_role():
     assert security.require_lecturer(LECTURER) is LECTURER
 
 
-def test_course_access_hides_unassigned_course(monkeypatch):
-    monkeypatch.setattr(security, "_exists", lambda *a, **k: False)
+def test_course_access_hides_unassigned_course(db):
     with pytest.raises(NotFound):
-        security.assert_course_access(LECTURER, UUID(int=9))
+        security.assert_course_access(LECTURER_USER, UUID(COURSE_B))
 
 
-def test_student_cannot_use_lecturer_course_guard(monkeypatch):
-    monkeypatch.setattr(security, "_exists", lambda *a, **k: True)
+def test_student_cannot_use_lecturer_course_guard(db):
     with pytest.raises(Forbidden):
-        security.assert_course_lecturer(STUDENT, UUID(int=9))
+        security.assert_course_lecturer(STUDENT, UUID(COURSE_A))
 
 
 def test_profile_update_rejects_role_change(client, as_user):

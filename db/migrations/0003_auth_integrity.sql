@@ -1,8 +1,8 @@
 -- Phase 1: identity integrity + atomic provisioning.
--- Run after 0001/0002. Run once only.
+-- Run after 0001/0002. Safe to run once; re-running will fail on existing triggers (by design: versioned migration).
 begin;
 
--- 1. A profile's id and role can never change after creation.
+-- 1. A profile's id and role can never change after creation (privilege-escalation guard).
 create or replace function trg_profiles_immutable() returns trigger language plpgsql as $$
 begin
   if new.id <> old.id or new.role <> old.role then
@@ -13,7 +13,7 @@ end $$;
 create trigger profiles_immutable before update on profiles
   for each row execute function trg_profiles_immutable();
 
--- 2. students/lecturers rows may only attach to a profile with the matching role.
+-- 2. students/lecturers rows may only attach to a profile with the matching role (SRS 9.1: 1-1 by role).
 create or replace function trg_role_row_matches_profile() returns trigger language plpgsql as $$
 declare actual user_role;
 begin
@@ -28,7 +28,8 @@ create trigger students_role_check  before insert or update of id on students
 create trigger lecturers_role_check before insert or update of id on lecturers
   for each row execute function trg_role_row_matches_profile('lecturer');
 
--- 3. Atomic provisioning: profile + role row in ONE transaction.
+-- 3. Atomic provisioning: profile + role row in ONE transaction (NFR-REL-01).
+-- The auth user must already exist (profiles.id references auth.users). Callable by service_role only.
 create or replace function provision_profile(
   p_id uuid, p_role user_role, p_full_name text, p_email text, p_phone text default null,
   p_registration_number text default null, p_program text default null, p_year_of_study smallint default null,
