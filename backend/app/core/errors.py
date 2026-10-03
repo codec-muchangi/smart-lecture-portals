@@ -37,6 +37,14 @@ class ValidationFailed(AppError):
     status_code, code = 400, "VALIDATION_ERROR"
 
 
+class FileTooLarge(AppError):
+    status_code, code = 400, "FILE_TOO_LARGE"
+
+
+class FileTypeNotAllowed(AppError):
+    status_code, code = 400, "FILE_TYPE_NOT_ALLOWED"
+
+
 class RateLimited(AppError):
     status_code, code = 429, "RATE_LIMITED"
 

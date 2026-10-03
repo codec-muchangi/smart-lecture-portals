@@ -59,6 +59,7 @@ def require_role(role: str):
 
 require_student = require_role("student")
 require_lecturer = require_role("lecturer")
+LecturerDep = Annotated[CurrentUser, Depends(require_lecturer)]
 
 
 def assert_course_access(user: CurrentUser, course_id: UUID) -> dict:

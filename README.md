@@ -48,6 +48,9 @@ scripts/   check_structure.py, check_sql.py, seed_demo.py
 ## Courses and enrollment (no admin UI in v1.0)
 `cd backend` → activate venv → `python ../scripts/manage_academic.py --help` (create courses, assign lecturers, enroll/withdraw students, bulk CSV enroll, archive courses). See `docs/PHASE2_BACKEND.md`.
 
+## Materials and file storage
+Lecturers upload course files through the API (`docs/API.md`, Phase 3). Files live in the private Supabase `materials` bucket and are served by short-lived signed links. Run `python ../scripts/purge_deleted_materials.py` (from `backend`) now and then to remove any file left behind by a failed delete. See `docs/PHASE3_BACKEND.md`.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py

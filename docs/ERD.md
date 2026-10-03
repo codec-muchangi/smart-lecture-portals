@@ -91,3 +91,11 @@ erDiagram
 - `trg_course_lecturer_rules`: assignment keys immutable; only `active` lecturers can be assigned.
 - Withdrawal is a status change (`withdrawn`), never a delete, so marks/attendance/submissions are never orphaned. Re-enrolling reactivates the same row.
 - Policy decisions: archived courses stay visible (read-only history) via `status=archived`; inactive courses are hidden from students; new academic writes in later phases must call `ensure_course_writable` (active courses only).
+
+## Migration 0005 (Phase 3) — materials & storage
+- `materials.file_removed_at` (new): NULL until the stored file has really been deleted; drives the retry job.
+- Constraints: `UNIQUE(storage_path)`; a deleted row cannot be published; `file_removed_at` requires `deleted_at`.
+- `trg_materials_guard`: file identity (`storage_path, file_name, mime_type, file_size`), `course_id` and `uploaded_by` are immutable; hard `DELETE` is blocked (soft delete only); the uploader must be a lecturer assigned to the course.
+- Indexes: course listing (`course_id, created_at desc` for live rows) and the pending-removal queue.
+- Bucket `materials`: private, 25 MB limit and the eight allowed MIME types enforced by Supabase itself (second wall behind the API). `storage.objects` keeps RLS with no client policies, so only the backend's service role can touch files.
+- Retention decision: deleting removes the **file** but keeps the **metadata row** for history/audit. Change this only through an explicit decision.
