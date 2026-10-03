@@ -1,7 +1,7 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
-pydantic-settings==2.7.0
-email-validator==2.2.0
-supabase==2.11.0
-python-multipart==0.0.20
+fastapi==0.142.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+email-validator==2.3.0
+supabase==2.31.0
+python-multipart==0.0.32
