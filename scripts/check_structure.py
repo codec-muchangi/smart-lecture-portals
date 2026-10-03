@@ -7,7 +7,8 @@ FEATURES = ["courses", "materials", "assignments", "attendance", "marks", "annou
 REQUIRED = [
     "README.md", ".gitignore", "docker-compose.yml",
     "docs/SRS.md", "docs/API.md", "docs/ERD.md", "docs/FRONTEND.md",
-    "db/migrations/0001_init_schema.sql", "db/migrations/0002_views.sql", "db/migrations/0003_auth_integrity.sql", "db/migrations/0004_courses_enrollment.sql",
+    "db/migrations/0001_init_schema.sql", "db/migrations/0002_views.sql", "db/migrations/0003_auth_integrity.sql", "db/migrations/0004_courses_enrollment.sql", "db/migrations/0005_materials.sql",
+    "scripts/purge_deleted_materials.py",
     "scripts/create_user.py", "scripts/manage_academic.py", "db/seed/seed_demo.sql",
     ".github/workflows/ci.yml", ".github/workflows/codeql.yml", ".github/workflows/deploy.yml",
     ".github/dependabot.yml", ".github/pull_request_template.md",

@@ -48,6 +48,45 @@ def add_student(db, n: int, name: str, reg: str, status: str = "active", enroll_
     return uid
 
 
+def make_material(
+    db,
+    course_id=None,
+    title="Week 1 Notes",
+    published=True,
+    file_name="notes.pdf",
+    uploader=None,
+    category="lecture_notes",
+    deleted=False,
+    with_object=True,
+) -> dict:
+    """Insert a material row (and its stored file) straight into the fake, bypassing the API."""
+    from uuid import uuid4
+
+    course_id = course_id or COURSE_A
+    mid = str(uuid4())
+    path = f"{course_id}/{mid}/{file_name}"
+    row = {
+        **db.defaults("materials"),  # first, so the explicit values below win
+        "id": mid,
+        "course_id": course_id,
+        "title": title,
+        "description": None,
+        "category": category,
+        "storage_path": path,
+        "file_name": file_name,
+        "mime_type": "application/pdf",
+        "file_size": 10,
+        "uploaded_by": uploader or L1,
+        "published": published and not deleted,
+    }
+    if deleted:
+        row["deleted_at"] = "2026-09-02T00:00:00+00:00"
+    db.tables.setdefault("materials", []).append(row)
+    if with_object:
+        db.objects[("materials", path)] = {"data": b"%PDF-1.4 test", "content_type": "application/pdf"}
+    return row
+
+
 def bearer(uid: str) -> dict:
     return {"Authorization": f"Bearer tok-{uid}"}
 

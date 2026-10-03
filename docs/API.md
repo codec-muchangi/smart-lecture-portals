@@ -9,7 +9,7 @@ Interactive docs: FastAPI `/docs` (OpenAPI). This file is the contract baseline 
 - **Errors:** `{ "code": "FORBIDDEN", "message": "…", "details": {…} }` — never stack traces.
 - **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 409 conflict · 422 schema validation · 500 unexpected.
 - **Existence policy:** resources in a course the caller has no access to return **404** (no existence leak); role-mismatch on a role-only endpoint returns **403**.
-- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, MARK_OUT_OF_RANGE, INTERNAL_ERROR`.
+- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (Phase 4/5 add `DEADLINE_PASSED`, `MARK_OUT_OF_RANGE`).
 
 Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = any authenticated.
 
@@ -46,14 +46,18 @@ Course scope rule (applies to every course-owned resource in later phases): lect
 
 Course creation, lecturer assignment and student enrollment are **not API endpoints** in v1.0: the SRS has no administrator role and treats provisioning as controlled setup (SRS 1.3, 24). They are done with `scripts/manage_academic.py` (see `docs/PHASE2_BACKEND.md`).
 
-## Materials
+## Materials — implemented in Phase 3
+Course scope rule as for Courses. Lecturer-only endpoints return **403** to students before looking anything up. Writes (upload, edit, delete) are blocked with **409** when the course is `archived` or `inactive` (read-only history). Students see **published** materials only; a draft or deleted material is **404** to them.
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/courses/{course_id}/materials` | S,L | S sees `published` only; `q, category` |
-| POST | `/courses/{course_id}/materials` | L | `multipart/form-data`: `title, description?, category?, published?, file`. Validates type/size → 201 |
-| GET | `/materials/{material_id}/download` | S,L | `{url, expires_in}` short-lived signed URL after authz |
-| PATCH | `/materials/{material_id}` | L | `title, description, category, published` |
-| DELETE | `/materials/{material_id}` | L | Soft delete; storage object removed per retention rule; 204 |
+| GET | `/courses/{course_id}/materials` | S,L | Paginated `{items,page,page_size,total}`, newest first. Filters: `q` (title/description), `category`, `page`, `page_size` (≤100). Items: `id, course_id, title, description, category, file_name, mime_type, file_size, published, uploaded_by, uploader_name, created_at, updated_at` (never the storage path) |
+| POST | `/courses/{course_id}/materials` | L | `multipart/form-data`: `file` (required), `title` (2-200, required), `description` (≤2000), `category` (`lecture_notes`\|`slides`\|`reading`\|`lab`\|`past_paper`\|`other`, default `other`), `published` (default `true`). 201 + material. See Upload rules |
+| GET | `/materials/{material_id}/download` | S,L | `{url, expires_in, file_name}`: a signed URL valid for `SIGNED_URL_TTL_SECONDS` (default 120) that forces a download. Issued only after the course-access check |
+| PATCH | `/materials/{material_id}` | L | `title`, `description` (blank clears), `category`, `published`. File name/path/size/type, course and uploader cannot be changed (422). Only changed fields are written and audited |
+| DELETE | `/materials/{material_id}` | L | 204. Soft delete (row kept, hidden everywhere) and the stored file is removed; see Retention |
+
+**Retention rule (FR-MAT-05):** deleting a material hides it immediately, keeps its metadata row for history, and removes the stored file. If storage is unavailable at that moment the delete still succeeds, `file_removed_at` stays empty and `scripts/purge_deleted_materials.py` removes the leftover file later.
 
 ## Assignments & submissions
 | Method | Path | Access | Notes |
@@ -126,8 +130,14 @@ Course creation, lecturer assignment and student enrollment are **not API endpoi
 4. `require_course_student(course_id)` — active row in `course_enrollments`.
 5. Child resources (material, assignment, submission, assessment, session, announcement) resolve to `course_id` first, then rule 3/4. Students accessing submissions/marks/attendance are additionally restricted to `student_id == me`.
 
-## Upload rules
-Config-driven (`ALLOWED_FILE_TYPES`, `MAX_UPLOAD_MB`): default PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP; default 25 MB. Extension **and** sniffed content-type must agree; filenames sanitised; paths generated server-side per SRS §14.
+## Upload rules (implemented in Phase 3; reused by Phase 4 submissions)
+- **Allowed types** (configurable via `ALLOWED_FILE_EXTENSIONS`; default): PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP. Types the server cannot verify by content (for example SVG, HTML, EXE, legacy DOC/PPT) cannot be enabled by configuration.
+- **Size:** `MAX_UPLOAD_MB` (default 25). Enforced three times: from the `Content-Length` header before the body is read, exactly after reading (at most limit+1 bytes are read), and by the Supabase bucket limit.
+- **Type check:** the extension must be allowed AND the content must match it (magic bytes; Office files must contain the correct internal parts; CSV must be text). The client's `Content-Type` is ignored; the stored MIME type comes from the verified extension.
+- **File names:** sanitised to `A-Z a-z 0-9 _ -` plus one lower-case extension (no paths, dots, spaces, `&`, quotes or control characters); non-ASCII letters are transliterated or dropped. Storage path is generated by the server: `materials/{course_id}/{material_id}/{sanitised_name}`.
+- **Errors (HTTP 400, per SRS 10.1):** `FILE_TYPE_NOT_ALLOWED` (details: `allowed_types`), `FILE_TOO_LARGE` (details: `max_mb`), `VALIDATION_ERROR` for an empty file; `SERVICE_UNAVAILABLE` (503) if storage is down.
+- Files are served only through signed URLs with `Content-Disposition: attachment`, so uploaded content is never rendered inline.
+- No malware scanning in v1.0 (SRS 14 says to consider it before production): treat ZIP/Office downloads as untrusted by students' devices, and add a scanner (for example ClamAV) before going live.
 
 ## Notification events
 `assignment_published`, `marks_released`, `grade_released`, `material_added`, `announcement` → fan-out to active enrolled students in the same transaction as the triggering change.

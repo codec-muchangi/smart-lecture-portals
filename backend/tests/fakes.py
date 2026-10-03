@@ -22,6 +22,18 @@ class Result:
         self.data, self.count = data, count
 
 
+class _Negated:
+    """Supports `.not_.is_(col, "null")`."""
+
+    def __init__(self, query):
+        self.query = query
+
+    def is_(self, col, val):
+        assert val == "null", "fake supports not_.is_(col, 'null') only"
+        self.query.filters.append(lambda r: r.get(col) is not None)
+        return self.query
+
+
 class Query:
     def __init__(self, db, table):
         self.db, self.table = db, table
@@ -40,6 +52,15 @@ class Query:
         sv = {str(v) for v in vals}
         self.filters.append(lambda r: str(r.get(col)) in sv)
         return self
+
+    def is_(self, col, val):
+        expected = {"null": None, "true": True, "false": False}[val]
+        self.filters.append(lambda r: r.get(col) is expected)
+        return self
+
+    @property
+    def not_(self):
+        return _Negated(self)
 
     def neq(self, col, val):
         self.filters.append(lambda r: str(r.get(col)) != str(val))
@@ -90,6 +111,8 @@ class Query:
     def execute(self):
         rows = self.db.tables.setdefault(self.table, [])
         if self._op == "insert":
+            if self.table in self.db.fail_insert_tables:
+                raise Exception(f"simulated database failure on {self.table}")
             new = []
             for item in self._payload if isinstance(self._payload, list) else [self._payload]:
                 row = (
@@ -97,6 +120,8 @@ class Query:
                     if "id" not in item and self.table != "profiles"
                     else dict(item)
                 )
+                for key, default in self.db.defaults(self.table).items():
+                    row.setdefault(key, default)
                 self.db.check_unique(self.table, row)
                 rows.append(row)
                 new.append(copy.deepcopy(row))
@@ -221,11 +246,67 @@ class Rpc:
         return Result(None)
 
 
+class FakeBucket:
+    def __init__(self, db, name):
+        self.db, self.name = db, name
+
+    def upload(self, path, file, file_options=None):
+        if self.db.storage_fail_upload:
+            raise Exception("simulated storage outage")
+        key = (self.name, path)
+        if key in self.db.objects:
+            raise Exception("The resource already exists")
+        self.db.objects[key] = {"data": bytes(file), "content_type": (file_options or {}).get("content-type")}
+
+    def remove(self, paths):
+        if self.db.storage_fail_remove:
+            raise Exception("simulated storage outage")
+        for p in paths:
+            self.db.objects.pop((self.name, p), None)
+
+    def create_signed_url(self, path, expires_in, options=None):
+        if (self.name, path) not in self.db.objects:
+            raise Exception("Object not found")
+        url = f"https://storage.test/{self.name}/{path}?token=t&expires={expires_in}"
+        if (options or {}).get("download"):
+            url += f"&download={options['download']}"
+        self.db.signed_urls.append((self.name, path, expires_in))
+        return {"signedURL": url, "signedUrl": url}
+
+
+class FakeStorage:
+    def __init__(self, db):
+        self.db = db
+
+    def from_(self, name):
+        return FakeBucket(self.db, name)
+
+
 class FakeSupabase:
     def __init__(self):
         self.tables, self.auth_users, self.revoked, self.reset_requests = {}, {}, set(), []
         self.auth_down = self.reject_password_updates = False
-        self.auth, _ = FakeAuth(self), None
+        self.auth = FakeAuth(self)
+        self.storage = FakeStorage(self)
+        self.objects, self.signed_urls = {}, []  # stored files: {(bucket, path): {data, content_type}}
+        self.storage_fail_upload = self.storage_fail_remove = False
+        self.fail_insert_tables: set[str] = set()
+        self._clock = 0
+
+    def defaults(self, table):
+        """Column defaults the real database would apply on insert."""
+        if table != "materials":
+            return {}
+        self._clock += 1
+        stamp = f"2026-09-01T00:{self._clock // 60:02d}:{self._clock % 60:02d}+00:00"  # strictly increasing
+        return {
+            "created_at": stamp,
+            "updated_at": stamp,
+            "deleted_at": None,
+            "file_removed_at": None,
+            "description": None,
+            "published": True,
+        }
 
     def table(self, name):
         return Query(self, name)
