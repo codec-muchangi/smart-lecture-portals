@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -84,6 +84,98 @@ def make_material(
     db.tables.setdefault("materials", []).append(row)
     if with_object:
         db.objects[("materials", path)] = {"data": b"%PDF-1.4 test", "content_type": "application/pdf"}
+    return row
+
+
+# ---- time control for deadline rules ----
+NOW = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+
+
+class Clock:
+    """Mutable fake 'now'. `clock.now = ...` moves time; `clock.advance(timedelta(...))` steps it."""
+
+    def __init__(self):
+        self.now = NOW
+
+    def advance(self, delta):
+        self.now = self.now + delta
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    from app.utils import clock as clock_module
+
+    fake = Clock()
+    monkeypatch.setattr(clock_module, "utcnow", lambda: fake.now)
+    return fake
+
+
+def make_assignment(
+    db,
+    course_id=None,
+    title="Assignment 1",
+    due_in_days=7,
+    published=True,
+    closed=False,
+    allow_late=False,
+    max_marks=20,
+    attachment_path=None,
+    creator=None,
+) -> dict:
+    """Insert an assignment straight into the fake. Deadline is relative to the frozen NOW."""
+    from datetime import timedelta
+    from uuid import uuid4
+
+    row = {
+        **db.defaults("assignments"),
+        "id": str(uuid4()),
+        "course_id": course_id or COURSE_A,
+        "title": title,
+        "due_at": (NOW + timedelta(days=due_in_days)).isoformat(),
+        "max_marks": max_marks,
+        "allow_late": allow_late,
+        "published": published,
+        "closed": closed,
+        "attachment_path": attachment_path,
+        "created_by": creator or L1,
+    }
+    db.tables.setdefault("assignments", []).append(row)
+    return row
+
+
+def make_submission(
+    db,
+    assignment,
+    student_id=None,
+    status="submitted",
+    mark=None,
+    feedback=None,
+    grade_released=False,
+    file_name="answer.pdf",
+    with_object=True,
+) -> dict:
+    """Insert a submission (and its stored file) straight into the fake."""
+    from uuid import uuid4
+
+    sid, upload_id = student_id or S1, str(uuid4())
+    path = f"{assignment['course_id']}/{assignment['id']}/{sid}/{upload_id}/{file_name}"
+    row = {
+        **db.defaults("submissions"),
+        "id": upload_id,
+        "assignment_id": assignment["id"],
+        "student_id": sid,
+        "storage_path": path,
+        "file_name": file_name,
+        "file_size": 10,
+        "submitted_at": (NOW - timedelta(hours=1)).isoformat(),
+        "status": status,
+        "mark": mark,
+        "feedback": feedback,
+        "grade_released": grade_released,
+    }
+    db.tables.setdefault("submissions", []).append(row)
+    if with_object:
+        db.objects[("submissions", path)] = {"data": b"%PDF-1.4 test", "content_type": "application/pdf"}
     return row
 
 

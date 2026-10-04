@@ -8,6 +8,7 @@ from app.db.client import get_supabase
 
 log = logging.getLogger("app.storage")
 MATERIALS_BUCKET = "materials"
+SUBMISSIONS_BUCKET = "submissions"
 
 
 def upload_object(bucket: str, path: str, data: bytes, content_type: str) -> None:

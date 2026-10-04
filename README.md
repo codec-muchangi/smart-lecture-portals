@@ -51,6 +51,9 @@ scripts/   check_structure.py, check_sql.py, seed_demo.py
 ## Materials and file storage
 Lecturers upload course files through the API (`docs/API.md`, Phase 3). Files live in the private Supabase `materials` bucket and are served by short-lived signed links. Run `python ../scripts/purge_deleted_materials.py` (from `backend`) now and then to remove any file left behind by a failed delete. See `docs/PHASE3_BACKEND.md`.
 
+## Assignments and submissions
+Lecturers create, publish and close assignments (optionally with an attached brief); students submit one file before the deadline (late only if the lecturer allows it) and can replace it until it is graded. See `docs/PHASE4_BACKEND.md` for the rules, the live-check list and the decisions to confirm.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py

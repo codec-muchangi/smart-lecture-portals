@@ -58,6 +58,7 @@ def require_role(role: str):
 
 
 require_student = require_role("student")
+StudentDep = Annotated[CurrentUser, Depends(require_student)]
 require_lecturer = require_role("lecturer")
 LecturerDep = Annotated[CurrentUser, Depends(require_lecturer)]
 

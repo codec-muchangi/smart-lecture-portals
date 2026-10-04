@@ -5,15 +5,8 @@ from fastapi import APIRouter, File, Form, Query, Response, UploadFile
 
 from app.core.errors import ValidationFailed
 from app.core.security import CurrentUserDep, LecturerDep
-from app.schemas.common import Page
-from app.schemas.material import (
-    DESCRIPTION_MAX,
-    TITLE_MAX,
-    DownloadOut,
-    MaterialCategory,
-    MaterialOut,
-    MaterialUpdate,
-)
+from app.schemas.common import DownloadOut, Page
+from app.schemas.material import DESCRIPTION_MAX, TITLE_MAX, MaterialCategory, MaterialOut, MaterialUpdate
 from app.services import material_service
 
 # Course-scoped: /courses/{course_id}/materials

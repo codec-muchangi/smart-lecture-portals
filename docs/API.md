@@ -9,7 +9,7 @@ Interactive docs: FastAPI `/docs` (OpenAPI). This file is the contract baseline 
 - **Errors:** `{ "code": "FORBIDDEN", "message": "…", "details": {…} }` — never stack traces.
 - **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 409 conflict · 422 schema validation · 500 unexpected.
 - **Existence policy:** resources in a course the caller has no access to return **404** (no existence leak); role-mismatch on a role-only endpoint returns **403**.
-- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (Phase 4/5 add `DEADLINE_PASSED`, `MARK_OUT_OF_RANGE`).
+- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` arrives with Phase 5).
 
 Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = any authenticated.
 
@@ -59,18 +59,36 @@ Course scope rule as for Courses. Lecturer-only endpoints return **403** to stud
 
 **Retention rule (FR-MAT-05):** deleting a material hides it immediately, keeps its metadata row for history, and removes the stored file. If storage is unavailable at that moment the delete still succeeds, `file_removed_at` stays empty and `scripts/purge_deleted_materials.py` removes the leftover file later.
 
-## Assignments & submissions
+## Assignments & submissions — implemented in Phase 4
+Course scope rule as for Courses. Lecturer-only endpoints return **403** to students before any lookup. Students only see **published** assignments (a draft is 404 to them). Writes are blocked with **409** when the course is `archived` (read-only); `inactive` courses are hidden from students (404). Assignments are **never deleted**; close them instead.
+
+States: `draft` (unpublished) → `open` (published, not closed) → `closed`. `submissions_open` tells a client whether a student can submit right now (published, not closed, and before the deadline or `allow_late`).
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/courses/{course_id}/assignments` | S,L | S sees published only, plus own submission status |
-| POST | `/courses/{course_id}/assignments` | L | `{title,description?,instructions?,due_at,max_marks,allow_late?,published?}`; multipart if attachment |
-| GET | `/assignments/{assignment_id}` | S,L | Details (+ own submission for S) |
-| PATCH | `/assignments/{assignment_id}` | L | Update / publish / close. `max_marks` cannot drop below an existing awarded mark |
-| POST | `/assignments/{assignment_id}/submissions` | S | multipart `file`. 403/404 if not enrolled; `DEADLINE_PASSED` 400 unless `allow_late`; late ⇒ `status=late`; resubmit allowed only while `submitted` (before grading) or `returned` |
-| GET | `/assignments/{assignment_id}/submissions` | L | Paginated; `status` filter |
-| GET | `/submissions/{submission_id}/download` | L (course) / S (own) | Signed URL |
-| PATCH | `/submissions/{submission_id}/grade` | L | `{mark, feedback?, release?:bool, return_for_revision?:bool}`; `0 ≤ mark ≤ max_marks`; audited |
-| GET | `/assignments/{assignment_id}/submissions/me` | S | Own submission; mark/feedback only if `grade_released` |
+| GET | `/courses/{course_id}/assignments` | S,L | Paginated, latest deadline first. Filters: `state` = `draft`\|`open`\|`closed`\|`all` (default), `q` (title), `page`, `page_size` (≤100). Items: `id, course_id, title, description, instructions, due_at, max_marks, allow_late, published, closed, state, submissions_open, has_attachment, attachment_name, created_by, created_at, updated_at, my_submission`. Students get their own `my_submission` (status; mark/feedback only once released) |
+| POST | `/courses/{course_id}/assignments` | L | JSON `{title (2-200), description?, instructions?, due_at, max_marks, allow_late?=false, published?=false}` → 201 + detail. `due_at` must include a timezone (stored UTC), be in the future and at most `ASSIGNMENT_MAX_DUE_DAYS` (366) ahead; `max_marks` in (0, 1000] with at most 2 decimals. Drafts are the default (FR-ASG-01) |
+| GET | `/assignments/{assignment_id}` | S,L | Detail. Lecturers also get `submission_counts` `{submitted, late, graded, returned, total}`; students get `my_submission` and never see class counts |
+| PATCH | `/assignments/{assignment_id}` | L | Any of `title, description, instructions, due_at, max_marks, allow_late, published, closed` (blank description/instructions clear them; others cannot be null). Rules: a **new** deadline must be in the future; a draft can only be published with a future deadline; an assignment with submissions cannot be unpublished (close it); only a published assignment can be closed; `max_marks` cannot drop below a mark already awarded; course, creator, attachment cannot be changed (422). Audited with old/new values |
+| PUT | `/assignments/{assignment_id}/attachment` | L | `multipart/form-data` `file` (optional brief for students). Replaces any existing attachment. Same upload rules. Returns the assignment |
+| DELETE | `/assignments/{assignment_id}/attachment` | L | Removes the attachment (404 if none). Returns the assignment |
+| GET | `/assignments/{assignment_id}/attachment` | S,L | `{url, expires_in, file_name}` signed link (students: published assignments only) |
+| POST | `/assignments/{assignment_id}/submissions` | S | `multipart/form-data` `file`. **201** first submission, **200** when it replaces the student's previous file. See Submission rules |
+| GET | `/assignments/{assignment_id}/submissions` | L | Paginated, newest first. Filters: `status` = `submitted`\|`late`\|`graded`\|`returned`\|`all` (default), `q` (student name / registration number). Items: submission fields + `student_name, registration_number, email`; lecturers always see `mark`, `feedback` |
+| GET | `/assignments/{assignment_id}/submissions/me` | S | Own submission (404 if none). `mark`/`feedback` are `null` until the lecturer releases the grade |
+| GET | `/submissions/{submission_id}/download` | L (course) / S (own) | `{url, expires_in, file_name}` signed link; another student's submission is 404 |
+| PATCH | `/submissions/{submission_id}/grade` | L | **Phase 5** (grading and mark release; FR-ASG-08/09/10, AT-10/11). The database already carries `mark`, `feedback`, `grade_released`, and the guards that protect them |
+
+Route changes from the SRS baseline (allowed by SRS section 10, "route names may be refined"): the optional assignment attachment has its own `PUT/DELETE/GET .../attachment` endpoints instead of multipart on create/update, which keeps create/update plain JSON; and `GET /assignments/{id}/submissions/me` and `GET /submissions/{id}/download` were added for FR-STU-07 and FR-LEC-07.
+
+### Submission rules (checked in this order)
+1. Caller is a **student actively enrolled** in the assignment's course and the assignment is **published**, else 404 (AT-06). Lecturers get 403.
+2. Course is `active` (409 if archived) and the assignment is not `closed` (409).
+3. **Deadline (FR-ASG-04/07):** after `due_at` the submission is refused with `DEADLINE_PASSED` (400) unless the lecturer set `allow_late`, in which case it is stored with status `late`. The deadline instant itself counts as on time.
+4. A **graded** submission can no longer be replaced (409). `submitted`, `late` and `returned` ones can be replaced while the deadline rules still allow it. One row per student per assignment (a replacement updates it; the timestamp and status are refreshed).
+5. The file passes the shared **upload rules** (type, content, size; AT-09), else 400.
+
+Storage layout: `submissions/{course_id}/{assignment_id}/{student_id}/{upload_id}/{sanitised_name}`. For a first submission `upload_id` equals the submission id (exactly as SRS 14); each replacement gets a fresh `upload_id` folder so it can never collide with the file it replaces, and the old file is then removed. Assignment attachments live in the private `materials` bucket at `{course_id}/assignments/{assignment_id}/{upload_id}/{sanitised_name}`.
 
 ## Attendance
 | Method | Path | Access | Notes |
@@ -130,7 +148,7 @@ Course scope rule as for Courses. Lecturer-only endpoints return **403** to stud
 4. `require_course_student(course_id)` — active row in `course_enrollments`.
 5. Child resources (material, assignment, submission, assessment, session, announcement) resolve to `course_id` first, then rule 3/4. Students accessing submissions/marks/attendance are additionally restricted to `student_id == me`.
 
-## Upload rules (implemented in Phase 3; reused by Phase 4 submissions)
+## Upload rules (implemented in Phase 3; shared by materials, assignment attachments and submissions)
 - **Allowed types** (configurable via `ALLOWED_FILE_EXTENSIONS`; default): PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP. Types the server cannot verify by content (for example SVG, HTML, EXE, legacy DOC/PPT) cannot be enabled by configuration.
 - **Size:** `MAX_UPLOAD_MB` (default 25). Enforced three times: from the `Content-Length` header before the body is read, exactly after reading (at most limit+1 bytes are read), and by the Supabase bucket limit.
 - **Type check:** the extension must be allowed AND the content must match it (magic bytes; Office files must contain the correct internal parts; CSV must be text). The client's `Content-Type` is ignored; the stored MIME type comes from the verified extension.

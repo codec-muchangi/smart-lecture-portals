@@ -27,3 +27,11 @@ class CurrentUser(BaseModel):
     role: str
     full_name: str
     email: str
+
+
+class DownloadOut(BaseModel):
+    """A short-lived signed link to a stored file."""
+
+    url: str
+    expires_in: int
+    file_name: str

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     max_upload_mb: int = 25
     signed_url_ttl_seconds: int = 120  # how long a download link stays valid
+    assignment_max_due_days: int = 366  # a deadline may be at most this far in the future (typo guard)
     allowed_file_extensions: str = "pdf,docx,pptx,xlsx,csv,png,jpg,jpeg,zip"
     password_reset_redirect_url: str = "http://localhost:5173/reset-password"
     login_rate_limit: int = 10  # attempts per window, per client IP

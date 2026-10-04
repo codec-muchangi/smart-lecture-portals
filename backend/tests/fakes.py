@@ -14,6 +14,28 @@ UNIQUE = {
     "courses": [("course_code", "academic_year", "semester")],
     "course_enrollments": [("course_id", "student_id")],
     "course_lecturers": [("course_id", "lecturer_id")],
+    "submissions": [("assignment_id", "student_id")],
+}
+
+# Column defaults the real database applies on insert (tables not listed here have none).
+TABLE_DEFAULTS = {
+    "materials": {"deleted_at": None, "file_removed_at": None, "description": None, "published": True},
+    "assignments": {
+        "description": None,
+        "instructions": None,
+        "allow_late": False,
+        "published": False,
+        "closed": False,
+        "attachment_path": None,
+    },
+    "submissions": {
+        "mark": None,
+        "feedback": None,
+        "grade_released": False,
+        "graded_by": None,
+        "graded_at": None,
+        "status": "submitted",
+    },
 }
 
 
@@ -81,6 +103,11 @@ class Query:
         self._order = (col, desc)
         return self
 
+    @staticmethod
+    def _sort_key(col):
+        """Natural ordering (numbers as numbers, text as text); NULLs sort last like PostgreSQL ascending."""
+        return lambda r: (r.get(col) is None, r.get(col) if r.get(col) is not None else 0)
+
     def limit(self, n):
         self._limit = n
         return self
@@ -127,6 +154,8 @@ class Query:
                 new.append(copy.deepcopy(row))
             return Result(new)
         if self._op == "update":
+            if self.table in self.db.fail_update_tables:
+                raise Exception(f"simulated database failure on {self.table}")
             hit = self._matching()
             for r in hit:
                 r.update(self._payload)
@@ -138,7 +167,7 @@ class Query:
         data = copy.deepcopy(self._matching())
         total = len(data)
         if self._order:
-            data.sort(key=lambda r: str(r.get(self._order[0])), reverse=self._order[1])
+            data.sort(key=self._sort_key(self._order[0]), reverse=self._order[1])
         if self._range:
             data = data[self._range[0] : self._range[1] + 1]
         if self._limit is not None:
@@ -291,22 +320,16 @@ class FakeSupabase:
         self.objects, self.signed_urls = {}, []  # stored files: {(bucket, path): {data, content_type}}
         self.storage_fail_upload = self.storage_fail_remove = False
         self.fail_insert_tables: set[str] = set()
+        self.fail_update_tables: set[str] = set()
         self._clock = 0
 
     def defaults(self, table):
         """Column defaults the real database would apply on insert."""
-        if table != "materials":
+        if table not in TABLE_DEFAULTS:
             return {}
         self._clock += 1
         stamp = f"2026-09-01T00:{self._clock // 60:02d}:{self._clock % 60:02d}+00:00"  # strictly increasing
-        return {
-            "created_at": stamp,
-            "updated_at": stamp,
-            "deleted_at": None,
-            "file_removed_at": None,
-            "description": None,
-            "published": True,
-        }
+        return {"created_at": stamp, "updated_at": stamp, **TABLE_DEFAULTS[table]}
 
     def table(self, name):
         return Query(self, name)
@@ -329,6 +352,19 @@ class FakeSupabase:
                 }
                 for e in self.tables.get("course_enrollments", [])
                 if e["student_id"] in students and e["student_id"] in profiles
+            ]
+        if name == "v_submission_overview":  # mirrors the SQL view in migration 0006
+            students = {r["id"]: r for r in self.tables.get("students", [])}
+            profiles = {r["id"]: r for r in self.tables.get("profiles", [])}
+            return [
+                {
+                    **{k: v for k, v in sub.items() if k != "storage_path"},
+                    "registration_number": students[sub["student_id"]]["registration_number"],
+                    "full_name": profiles[sub["student_id"]]["full_name"],
+                    "email": profiles[sub["student_id"]]["email"],
+                }
+                for sub in self.tables.get("submissions", [])
+                if sub["student_id"] in students and sub["student_id"] in profiles
             ]
         return self.tables.setdefault(name, [])
 
