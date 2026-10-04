@@ -26,12 +26,6 @@ class MaterialOut(BaseModel):
     updated_at: datetime
 
 
-class DownloadOut(BaseModel):
-    url: str
-    expires_in: int
-    file_name: str
-
-
 class MaterialUpdate(BaseModel):
     """Editable metadata only. File name/path/size/type, course and uploader are fixed at upload.
     description may be null/blank (clears it); title, category and published may not be null."""

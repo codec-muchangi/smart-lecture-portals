@@ -14,14 +14,13 @@ from typing import BinaryIO
 from uuid import UUID
 
 from app.core.config import get_settings
-from app.core.errors import FileTooLarge, FileTypeNotAllowed, NotFound, ValidationFailed
+from app.core.errors import NotFound, ValidationFailed
 from app.core.security import assert_course_access, assert_course_lecturer, ensure_course_writable
 from app.repositories import material_repository as repo
 from app.schemas.common import CurrentUser
 from app.schemas.material import DESCRIPTION_MAX, TITLE_MAX, TITLE_MIN
-from app.services import audit_service, storage_service
+from app.services import audit_service, storage_service, upload_service
 from app.services.storage_service import MATERIALS_BUCKET
-from app.utils.files import MIME_BY_EXT, content_matches_extension, sanitize_filename, split_extension
 from app.utils.search import safe_search
 
 log = logging.getLogger("app.materials")
@@ -68,29 +67,6 @@ def _clean_description(description: str | None) -> str | None:
     return description
 
 
-def _read_and_validate_file(file_obj: BinaryIO, original_name: str | None) -> tuple[bytes, str, str, str]:
-    """Returns (data, safe_name, extension, mime). Raises FILE_TOO_LARGE / FILE_TYPE_NOT_ALLOWED / 400."""
-    settings = get_settings()
-    allowed = sorted(settings.allowed_extensions)
-    safe_name = sanitize_filename(original_name)
-    ext = split_extension(safe_name)
-    if ext not in settings.allowed_extensions:
-        raise FileTypeNotAllowed("This file type is not allowed", {"allowed_types": allowed})
-    data = file_obj.read(settings.max_upload_bytes + 1)  # never read more than limit+1 bytes
-    if len(data) > settings.max_upload_bytes:
-        raise FileTooLarge(
-            f"File is larger than {settings.max_upload_mb} MB", {"max_mb": settings.max_upload_mb}
-        )
-    if not data:
-        raise ValidationFailed("The uploaded file is empty", {"file": "Empty file"})
-    if not content_matches_extension(ext, data):
-        raise FileTypeNotAllowed(
-            "The file content does not match its type",
-            {"allowed_types": allowed, "file": f"Not a valid .{ext} file"},
-        )
-    return data, safe_name, ext, MIME_BY_EXT[ext]
-
-
 # ---------- queries ----------
 def list_materials(
     user: CurrentUser, course_id: UUID, *, q: str | None, category: str | None, page: int, page_size: int
@@ -131,7 +107,8 @@ def create_material(
     course = assert_course_lecturer(user, course_id)
     ensure_course_writable(course)
     title, description = _clean_title(title), _clean_description(description)
-    data, safe_name, _, mime = _read_and_validate_file(file_obj, original_name)
+    upload = upload_service.read_and_validate(file_obj, original_name)
+    data, safe_name, mime = upload.data, upload.safe_name, upload.mime_type
 
     material_id = str(uuid.uuid4())  # server-generated; the client never influences the storage path
     storage_path = f"{course['id']}/{material_id}/{safe_name}"

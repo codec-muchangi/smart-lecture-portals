@@ -99,3 +99,11 @@ erDiagram
 - Indexes: course listing (`course_id, created_at desc` for live rows) and the pending-removal queue.
 - Bucket `materials`: private, 25 MB limit and the eight allowed MIME types enforced by Supabase itself (second wall behind the API). `storage.objects` keeps RLS with no client policies, so only the backend's service role can touch files.
 - Retention decision: deleting removes the **file** but keeps the **metadata row** for history/audit. Change this only through an explicit decision.
+
+## Migration 0006 (Phase 4) — assignments & submissions
+- `trg_assignments_guard`: the creator must be a lecturer assigned to the course; `course_id` and `created_by` are immutable; `max_marks` cannot be set below a mark already awarded; a published assignment with submissions cannot be unpublished; hard `DELETE` is blocked (close instead). Constraint: only a published assignment can be closed.
+- `check_submission_window()` + `trg_submissions_guard`: every new submission, and every replacement of the file, requires a published and open assignment, an actively enrolled student, and a deadline that has not passed unless `allow_late` (the same rules as the API, enforced again in the database). `assignment_id` and `student_id` are immutable; a graded submission's file cannot be replaced; hard `DELETE` is blocked (academic history). `UNIQUE(storage_path)`.
+- `v_submission_overview` (security invoker, service-role only): submissions joined with student name, registration number and email, without the storage path; searched and paginated in SQL.
+- Indexes for the lecturer's submission list and the assignment list.
+- Bucket `submissions`: private, 25 MB limit and the eight verified MIME types enforced by Supabase itself.
+- Design decisions: one submission row per (assignment, student); resubmission updates the row and uses a fresh `upload_id` folder; deadlines are stored in UTC (`timestamptz`) and compared against one injectable clock (`app/utils/clock.py`) so deadline behaviour is testable; assignments and submissions are never hard-deleted.

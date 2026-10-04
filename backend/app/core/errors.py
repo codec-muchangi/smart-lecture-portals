@@ -45,6 +45,10 @@ class FileTypeNotAllowed(AppError):
     status_code, code = 400, "FILE_TYPE_NOT_ALLOWED"
 
 
+class DeadlinePassed(AppError):
+    status_code, code = 400, "DEADLINE_PASSED"
+
+
 class RateLimited(AppError):
     status_code, code = 429, "RATE_LIMITED"
 
