@@ -22,12 +22,18 @@ def _base(row: dict) -> dict:
 
 
 def student_view(row: dict) -> dict:
-    """Mark and feedback stay hidden from the student until the lecturer releases them."""
+    """What the owning student may see (SRS 5.3, FR-ASG-10).
+
+    The mark and the feedback of a graded submission stay hidden until the lecturer releases the grade. A
+    submission returned for revision is the exception for feedback only: it is useless unless the student can
+    read what to fix. A returned submission never has a mark.
+    """
     released = bool(row.get("grade_released"))
+    returned = row.get("status") == "returned"
     return {
         **_base(row),
         "mark": row.get("mark") if released else None,
-        "feedback": row.get("feedback") if released else None,
+        "feedback": row.get("feedback") if released or returned else None,
     }
 
 

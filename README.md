@@ -54,6 +54,9 @@ Lecturers upload course files through the API (`docs/API.md`, Phase 3). Files li
 ## Assignments and submissions
 Lecturers create, publish and close assignments (optionally with an attached brief); students submit one file before the deadline (late only if the lecturer allows it) and can replace it until it is graded. See `docs/PHASE4_BACKEND.md` for the rules, the live-check list and the decisions to confirm.
 
+## Grading and marks
+Lecturers grade assignment submissions (mark + feedback, release when ready, or return for revision) and record assessment marks (CAT, exam, ...) for their students; students see only released grades and published marks, with a weighted course total. See `docs/PHASE5_BACKEND.md` for the rules, the setup steps and the live-check list. `python scripts/verify_database.py` (needs `pip install pgserver`, Linux/macOS) proves the SQL rules on a real throw-away PostgreSQL.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py

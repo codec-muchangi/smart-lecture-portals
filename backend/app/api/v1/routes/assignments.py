@@ -16,7 +16,8 @@ from app.schemas.assignment import (
     SubmissionStatusFilter,
 )
 from app.schemas.common import DownloadOut, Page
-from app.services import assignment_service, submission_service
+from app.schemas.grading import GradeRequest, ReleaseRequest, ReleaseResult
+from app.services import assignment_service, grading_service, submission_service
 
 # Course-scoped: /courses/{course_id}/assignments
 course_router = APIRouter(prefix="/courses/{course_id}/assignments", tags=["assignments"])
@@ -115,3 +116,14 @@ def my_submission(assignment_id: UUID, user: StudentDep) -> dict:
 @submission_router.get("/{submission_id}/download", response_model=DownloadOut)
 def download_submission(submission_id: UUID, user: CurrentUserDep) -> dict:
     return submission_service.get_download(user, submission_id)
+
+
+# ---------------- grading (Phase 5) ----------------
+@submission_router.patch("/{submission_id}/grade", response_model=SubmissionListItem)
+def grade_submission(submission_id: UUID, body: GradeRequest, user: LecturerDep) -> dict:
+    return grading_service.grade_submission(user, submission_id, body)
+
+
+@assignment_router.post("/{assignment_id}/grades/release", response_model=ReleaseResult)
+def release_grades(assignment_id: UUID, body: ReleaseRequest, user: LecturerDep) -> dict:
+    return grading_service.release_all(user, assignment_id, body.released)

@@ -107,3 +107,11 @@ erDiagram
 - Indexes for the lecturer's submission list and the assignment list.
 - Bucket `submissions`: private, 25 MB limit and the eight verified MIME types enforced by Supabase itself.
 - Design decisions: one submission row per (assignment, student); resubmission updates the row and uses a fresh `upload_id` folder; deadlines are stored in UTC (`timestamptz`) and compared against one injectable clock (`app/utils/clock.py`) so deadline behaviour is testable; assignments and submissions are never hard-deleted.
+
+## Migration 0007 (Phase 5) — grading & marks
+- **`submissions_grading_consistency`** (CHECK): a `graded` submission always has a mark, a grader and a grading time; every other status (`submitted`, `late`, `returned`) has no mark and is never released. `trg_submissions_grader`: the grader must be a lecturer assigned to the assignment's course. The `mark <= max_marks` rule is `trg_check_submission_mark` (0001).
+- **`trg_assessments_guard`**: creator must be assigned; course/creator immutable; `max_marks` cannot fall below an entered mark; the weights of one course cannot add up to more than 100; never hard-deleted.
+- **`trg_assessment_marks_guard`**: only actively enrolled students; entered by an assigned lecturer; the (assessment, student) key is immutable; marks are never hard-deleted (correct them instead). Range `0 <= mark <= max_marks` is `assessment_marks_range` (0001); one row per student is `UNIQUE(assessment_id, student_id)` (AT-19).
+- **Transactional functions** (service role only): `apply_grade` (grade / regrade / release / return, with its audit row), `release_grades` (bulk show/hide with a count and audit row), `upsert_assessment_marks` (a whole batch plus one audit row per change). A change and its audit row therefore **cannot** succeed without each other (SRS 15, FR-MARK-07).
+- Decisions: the weight of an assessment is a percentage of the course total (cap of 100 per course); a returned submission's feedback is visible to the student even though no grade is released; `v_student_course_total` (0002) is kept for future reports, while students' totals come from one tested calculator (`marks_calc.py`).
+- `scripts/verify_database.py` applies all seven migrations to a throw-away PostgreSQL 16 and checks these rules directly (85 checks); CI runs it on every push.

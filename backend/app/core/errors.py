@@ -45,6 +45,10 @@ class FileTypeNotAllowed(AppError):
     status_code, code = 400, "FILE_TYPE_NOT_ALLOWED"
 
 
+class MarkOutOfRange(AppError):
+    status_code, code = 400, "MARK_OUT_OF_RANGE"
+
+
 class DeadlinePassed(AppError):
     status_code, code = 400, "DEADLINE_PASSED"
 
