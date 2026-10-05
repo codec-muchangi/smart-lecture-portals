@@ -26,6 +26,18 @@ jobs:
       - run: python scripts/check_structure.py
       - run: python scripts/check_sql.py
 
+  database:
+    name: Database migrations (real PostgreSQL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pgserver
+      - name: Apply every migration and check triggers, constraints, functions, privileges and RLS
+        run: python scripts/verify_database.py
+
   backend:
     name: Backend (ruff + pytest)
     runs-on: ubuntu-latest
@@ -93,7 +105,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [structure-and-sql, backend, frontend, secret-scan]
+    needs: [structure-and-sql, database, backend, frontend, secret-scan]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled

@@ -77,7 +77,8 @@ States: `draft` (unpublished) → `open` (published, not closed) → `closed`. `
 | GET | `/assignments/{assignment_id}/submissions` | L | Paginated, newest first. Filters: `status` = `submitted`\|`late`\|`graded`\|`returned`\|`all` (default), `q` (student name / registration number). Items: submission fields + `student_name, registration_number, email`; lecturers always see `mark`, `feedback` |
 | GET | `/assignments/{assignment_id}/submissions/me` | S | Own submission (404 if none). `mark`/`feedback` are `null` until the lecturer releases the grade |
 | GET | `/submissions/{submission_id}/download` | L (course) / S (own) | `{url, expires_in, file_name}` signed link; another student's submission is 404 |
-| PATCH | `/submissions/{submission_id}/grade` | L | **Phase 5** (grading and mark release; FR-ASG-08/09/10, AT-10/11). The database already carries `mark`, `feedback`, `grade_released`, and the guards that protect them |
+| PATCH | `/submissions/{submission_id}/grade` | L | **Grading (Phase 5).** Body (strict, unknown fields ⇒ 422): `mark` (0 ≤ mark ≤ the assignment's `max_marks`, ≤ 2 decimals), `feedback` (≤ 2000, blank clears), `release` (strict true/false), `return_for_revision` (strict true/false). **Grade:** send `mark` (+ optional `feedback`, `release`) ⇒ status `graded`, grader and time recorded; a mark above the maximum ⇒ **400 `MARK_OUT_OF_RANGE`**. **Regrade:** send a new `mark`/`feedback`; omitted fields keep their value. **Release/hide only:** send `release` alone on a graded submission. **Return for revision:** `return_for_revision: true` + required `feedback` (no `mark`, no `release`) ⇒ status `returned`, any mark and release cleared. Sending nothing ⇒ 400; `release`/`feedback` alone on an ungraded submission ⇒ 409. Returns the lecturer view of the submission. The change and its audit row are written in one database transaction. Blocked with 409 when the course is archived |
+| POST | `/assignments/{assignment_id}/grades/release` | L | **Phase 5.** `{"released": true\|false}` shows (or hides) every **graded** submission of the assignment at once; ungraded work is never touched. Returns `{"updated": n}` (rows that changed; repeating it returns 0). One audit row `grades.release_all` / `grades.hide_all` |
 
 Route changes from the SRS baseline (allowed by SRS section 10, "route names may be refined"): the optional assignment attachment has its own `PUT/DELETE/GET .../attachment` endpoints instead of multipart on create/update, which keeps create/update plain JSON; and `GET /assignments/{id}/submissions/me` and `GET /submissions/{id}/download` were added for FR-STU-07 and FR-LEC-07.
 
@@ -85,7 +86,7 @@ Route changes from the SRS baseline (allowed by SRS section 10, "route names may
 1. Caller is a **student actively enrolled** in the assignment's course and the assignment is **published**, else 404 (AT-06). Lecturers get 403.
 2. Course is `active` (409 if archived) and the assignment is not `closed` (409).
 3. **Deadline (FR-ASG-04/07):** after `due_at` the submission is refused with `DEADLINE_PASSED` (400) unless the lecturer set `allow_late`, in which case it is stored with status `late`. The deadline instant itself counts as on time.
-4. A **graded** submission can no longer be replaced (409). `submitted`, `late` and `returned` ones can be replaced while the deadline rules still allow it. One row per student per assignment (a replacement updates it; the timestamp and status are refreshed).
+4. A **graded** submission can no longer be replaced (409); a submission **returned for revision** can be. `submitted`, `late` and `returned` ones can be replaced while the deadline rules still allow it. One row per student per assignment (a replacement updates it; the timestamp and status are refreshed).
 5. The file passes the shared **upload rules** (type, content, size; AT-09), else 400.
 
 Storage layout: `submissions/{course_id}/{assignment_id}/{student_id}/{upload_id}/{sanitised_name}`. For a first submission `upload_id` equals the submission id (exactly as SRS 14); each replacement gets a fresh `upload_id` folder so it can never collide with the file it replaces, and the old file is then removed. Assignment attachments live in the private `materials` bucket at `{course_id}/assignments/{assignment_id}/{upload_id}/{sanitised_name}`.
@@ -99,15 +100,25 @@ Storage layout: `submissions/{course_id}/{assignment_id}/{student_id}/{upload_id
 | POST | `/attendance/sessions/{session_id}/records` | L | `{records:[{student_id,status,note?}]}` upsert in one transaction; only enrolled students; corrections write audit rows |
 | GET | `/courses/{course_id}/attendance/me` | S | History + `attendance_pct` |
 
-## Marks
+## Marks & grading — implemented in Phase 5
+Course scope rule as for Courses. Lecturer-only endpoints return **403** to students before any lookup; students only ever see **published** assessments and **their own** marks (AT-05, AT-12). Writes are blocked with **409** when the course is `archived`/`inactive`.
+
+An **assessment** is one component of a course result (CAT, practical, exam, ...). Its `weight` is a percentage of the course total; the weights of one course may add up to at most 100 (409 otherwise). **Marks are never deleted**: correct a wrong value by entering the right one (every change is audited with the old and new value).
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/courses/{course_id}/assessments` | L | `{name,type,max_marks,weight?}` |
-| GET | `/courses/{course_id}/assessments` | S,L | S sees published only |
-| PATCH | `/assessments/{assessment_id}` | L | Edit / publish / unpublish |
-| GET | `/assessments/{assessment_id}/marks` | L | Roster with marks |
-| PUT | `/assessments/{assessment_id}/marks` | L | `{marks:[{student_id,mark,feedback?}]}` bulk upsert, atomic; any out-of-range ⇒ whole request 400 `MARK_OUT_OF_RANGE` with per-row details; audited |
-| GET | `/courses/{course_id}/marks/me` | S | Own published marks + weighted total |
+| POST | `/courses/{course_id}/assessments` | L | `{name (2-100), type (cat\|assignment\|practical\|exam\|other), max_marks (0,1000], weight? (0,100]}` → 201. Created **unpublished** (FR-MARK-05). 409 if the weights would exceed 100 |
+| GET | `/courses/{course_id}/assessments` | S,L | Paginated (`page`, `page_size` ≤ 100), oldest first. Students see published only. Lecturers also get `marks_entered` (how many students have a mark) |
+| PATCH | `/assessments/{assessment_id}` | L | `name, type, max_marks, weight (null removes it), published`. `max_marks` cannot drop below a mark already entered (409); the weight budget is re-checked (409). `published` shows/hides the assessment and all its marks to students. Course/creator cannot change (422). Audited |
+| GET | `/assessments/{assessment_id}/marks` | L | The roster for entering marks: actively enrolled students with their current `mark`, `feedback`, `updated_at` (null when not marked), sorted by name. `q` (name/registration number/email), `page`, `page_size` ≤ 200 (default 50) |
+| PUT | `/assessments/{assessment_id}/marks` | L | `{"marks":[{"student_id","mark","feedback?"}, ...]}` (1-500 rows). **All or nothing:** every row is checked first (0 ≤ mark ≤ `max_marks`, student actively enrolled, no student twice); any problem rejects the whole batch with **400** (`MARK_OUT_OF_RANGE` if any mark is too high, otherwise `VALIDATION_ERROR`) and `details.rows = [{index, student_id, message}]` listing **every** problem. Success: `{created, updated, unchanged, total}`. Saved in one database transaction together with one audit row per created/changed mark (`mark.create` / `mark.update`, old and new values, the lecturer who changed it). One row per student and assessment |
+| GET | `/courses/{course_id}/marks/me` | S | Own marks for **published** assessments: `items:[{assessment_id, name, type, max_marks, weight, mark (null = not marked yet), percentage, feedback}]` and `totals` |
+
+**Weighted result (FR-MARK-04), `totals`:** every weighted, published, marked assessment contributes `mark / max_marks × weight` points.
+`weighted_total` = points earned so far · `weight_graded` = weight of the marked assessments · `weight_published` = weight of all published weighted assessments · `weighted_percent` = `weighted_total / weight_graded × 100` (null if nothing is marked) · `marks_total` / `max_total` = raw sums over the marked assessments (unweighted ones included). Rounded half-up to 2 decimals using exact decimal arithmetic. Unpublished assessments never count.
+Example: CAT 1 (24/30, weight 15) and CAT 2 (40/50, weight 25) with an unmarked exam (weight 60) ⇒ `weighted_total 32.0`, `weight_graded 40`, `weight_published 100`, `weighted_percent 80.0`.
+
+Assignment grades and assessment marks are **separate**: an assignment grade (above) is feedback on one submission; an assessment mark feeds the course result. Nothing is copied automatically between them (the SRS defines no link, so none was invented).
 
 ## Announcements
 | Method | Path | Access | Notes |

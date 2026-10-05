@@ -92,3 +92,57 @@ def list_for_assignment(
     start = (page - 1) * page_size
     res = query.order("submitted_at", desc=True).range(start, start + page_size - 1).execute()
     return res.data, res.count or 0
+
+
+def get_overview(submission_id: UUID | str) -> dict | None:
+    """One submission with the student's identity (the lecturer's view)."""
+    rows = (
+        get_supabase()
+        .table("v_submission_overview")
+        .select(OVERVIEW_COLS)
+        .eq("id", str(submission_id))
+        .limit(1)
+        .execute()
+        .data
+    )
+    return rows[0] if rows else None
+
+
+def apply_grade(
+    submission_id: UUID | str,
+    actor_id: UUID | str,
+    *,
+    action: str,
+    status: str,
+    mark: float | None,
+    feedback: str | None,
+    release: bool,
+    regrade: bool,
+) -> None:
+    """Atomic: the submission update and its audit row are written in ONE database transaction."""
+    get_supabase().rpc(
+        "apply_grade",
+        {
+            "p_submission": str(submission_id),
+            "p_actor": str(actor_id),
+            "p_action": action,
+            "p_status": status,
+            "p_mark": mark,
+            "p_feedback": feedback,
+            "p_release": release,
+            "p_regrade": regrade,
+        },
+    ).execute()
+
+
+def release_all(assignment_id: UUID | str, actor_id: UUID | str, released: bool) -> int:
+    """Atomic bulk release/hide of every graded submission of an assignment. Returns the rows changed."""
+    res = (
+        get_supabase()
+        .rpc(
+            "release_grades",
+            {"p_assignment": str(assignment_id), "p_actor": str(actor_id), "p_released": released},
+        )
+        .execute()
+    )
+    return int(res.data or 0)

@@ -15,6 +15,7 @@ UNIQUE = {
     "course_enrollments": [("course_id", "student_id")],
     "course_lecturers": [("course_id", "lecturer_id")],
     "submissions": [("assignment_id", "student_id")],
+    "assessment_marks": [("assessment_id", "student_id")],
 }
 
 # Column defaults the real database applies on insert (tables not listed here have none).
@@ -28,6 +29,7 @@ TABLE_DEFAULTS = {
         "closed": False,
         "attachment_path": None,
     },
+    "assessments": {"weight": None, "published": False},
     "submissions": {
         "mark": None,
         "feedback": None,
@@ -232,47 +234,172 @@ class FakeAuth:
         self.db.reset_requests.append((email, options))
 
 
+def _rpc_provision_profile(db, p):
+    Query(db, "profiles").insert(
+        {
+            "id": p["p_id"],
+            "role": p["p_role"],
+            "full_name": p["p_full_name"],
+            "email": p["p_email"].lower(),
+            "phone": p.get("p_phone"),
+        }
+    ).execute()
+    if p["p_role"] == "student":
+        Query(db, "students").insert(
+            {
+                "id": p["p_id"],
+                "registration_number": p["p_registration_number"],
+                "program": p.get("p_program"),
+                "year_of_study": p.get("p_year_of_study"),
+                "status": "active",
+            }
+        ).execute()
+    else:
+        Query(db, "lecturers").insert(
+            {
+                "id": p["p_id"],
+                "staff_number": p["p_staff_number"],
+                "department": p.get("p_department"),
+                "title": p.get("p_title"),
+                "status": "active",
+            }
+        ).execute()
+
+
+def _audit(db, actor, action, entity_type, entity_id, old, new):
+    Query(db, "audit_logs").insert(
+        {
+            "actor_user_id": actor,
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "old_value": old,
+            "new_value": new,
+        }
+    ).execute()
+
+
+def _rpc_apply_grade(db, p):
+    """Mirrors apply_grade() in migration 0007: update + audit row, one transaction."""
+    sub = next((s for s in db.tables.get("submissions", []) if s["id"] == p["p_submission"]), None)
+    if sub is None:
+        raise Exception("submission not found (P0002)")
+    old = {k: sub[k] for k in ("status", "mark", "feedback", "grade_released")}
+    sub.update(
+        status=p["p_status"], mark=p["p_mark"], feedback=p["p_feedback"], grade_released=p["p_release"]
+    )
+    if p["p_status"] != "graded":
+        sub.update(graded_by=None, graded_at=None)
+    elif p["p_regrade"]:
+        sub.update(graded_by=p["p_actor"], graded_at="2026-10-05T12:00:00+00:00")
+    new = {
+        "status": p["p_status"],
+        "mark": p["p_mark"],
+        "feedback": p["p_feedback"],
+        "grade_released": p["p_release"],
+    }
+    _audit(db, p["p_actor"], p["p_action"], "submission", p["p_submission"], old, new)
+
+
+def _rpc_release_grades(db, p):
+    """Mirrors release_grades(): returns the number of rows changed."""
+    n = 0
+    for s in db.tables.get("submissions", []):
+        if (
+            s["assignment_id"] == p["p_assignment"]
+            and s["status"] == "graded"
+            and bool(s["grade_released"]) != p["p_released"]
+        ):
+            s["grade_released"] = p["p_released"]
+            n += 1
+    action = "grades.release_all" if p["p_released"] else "grades.hide_all"
+    _audit(db, p["p_actor"], action, "assignment", p["p_assignment"], None, {"count": n})
+    return n
+
+
+def _rpc_upsert_assessment_marks(db, p):
+    """Mirrors upsert_assessment_marks(): per-row create/update with audit, all or nothing."""
+    assessment = next((a for a in db.tables.get("assessments", []) if a["id"] == p["p_assessment"]), None)
+    if assessment is None:
+        raise Exception("assessment not found (P0002)")
+    created = updated = unchanged = 0
+    marks = db.tables.setdefault("assessment_marks", [])
+    for r in p["p_rows"]:
+        enrolled = any(
+            e["course_id"] == assessment["course_id"]
+            and e["student_id"] == r["student_id"]
+            and e["status"] == "active"
+            for e in db.tables.get("course_enrollments", [])
+        )
+        if not enrolled:
+            raise Exception("student is not actively enrolled in this course (23514)")
+        if float(r["mark"]) > float(assessment["max_marks"]) or float(r["mark"]) < 0:
+            raise Exception("mark exceeds max_marks (23514)")
+        feedback = r.get("feedback") or None
+        existing = next(
+            (
+                m
+                for m in marks
+                if m["assessment_id"] == p["p_assessment"] and m["student_id"] == r["student_id"]
+            ),
+            None,
+        )
+        new = {"student_id": r["student_id"], "mark": r["mark"], "feedback": feedback}
+        if existing is None:
+            marks.append(
+                {
+                    "id": f"m{len(marks) + 1}",
+                    "assessment_id": p["p_assessment"],
+                    "student_id": r["student_id"],
+                    "mark": r["mark"],
+                    "feedback": feedback,
+                    "entered_by": p["p_actor"],
+                    "entered_at": "2026-10-05T12:00:00+00:00",
+                    "updated_at": "2026-10-05T12:00:00+00:00",
+                }
+            )
+            _audit(db, p["p_actor"], "mark.create", "assessment", p["p_assessment"], None, new)
+            created += 1
+        elif existing["mark"] != r["mark"] or existing["feedback"] != feedback:
+            old = {"student_id": r["student_id"], "mark": existing["mark"], "feedback": existing["feedback"]}
+            existing.update(
+                mark=r["mark"],
+                feedback=feedback,
+                entered_by=p["p_actor"],
+                updated_at="2026-10-05T12:30:00+00:00",
+            )
+            _audit(db, p["p_actor"], "mark.update", "assessment", p["p_assessment"], old, new)
+            updated += 1
+        else:
+            unchanged += 1
+    return {"created": created, "updated": updated, "unchanged": unchanged}
+
+
+RPC_HANDLERS = {
+    "provision_profile": _rpc_provision_profile,
+    "apply_grade": _rpc_apply_grade,
+    "release_grades": _rpc_release_grades,
+    "upsert_assessment_marks": _rpc_upsert_assessment_marks,
+}
+
+
 class Rpc:
+    """A database function call. Like a real transaction, a failure anywhere (including the simulated
+    `fail_rpc_after` hook, which fires AFTER the work was done) rolls every change back."""
+
     def __init__(self, db, name, params):
         self.db, self.name, self.params = db, name, params
 
     def execute(self):
-        assert self.name == "provision_profile"
-        p, snapshot = self.params, copy.deepcopy(self.db.tables)
+        snapshot = copy.deepcopy(self.db.tables)
         try:
-            Query(self.db, "profiles").insert(
-                {
-                    "id": p["p_id"],
-                    "role": p["p_role"],
-                    "full_name": p["p_full_name"],
-                    "email": p["p_email"].lower(),
-                    "phone": p.get("p_phone"),
-                }
-            ).execute()
-            if p["p_role"] == "student":
-                Query(self.db, "students").insert(
-                    {
-                        "id": p["p_id"],
-                        "registration_number": p["p_registration_number"],
-                        "program": p.get("p_program"),
-                        "year_of_study": p.get("p_year_of_study"),
-                        "status": "active",
-                    }
-                ).execute()
-            else:
-                Query(self.db, "lecturers").insert(
-                    {
-                        "id": p["p_id"],
-                        "staff_number": p["p_staff_number"],
-                        "department": p.get("p_department"),
-                        "title": p.get("p_title"),
-                        "status": "active",
-                    }
-                ).execute()
+            result = RPC_HANDLERS[self.name](self.db, self.params)
+            if self.name in self.db.fail_rpc_after:
+                raise Exception(f"simulated failure inside {self.name}")
         except Exception:
             self.db.tables = snapshot  # transaction rollback
             raise
-        return Result(None)
+        return Result(result)
 
 
 class FakeBucket:
@@ -321,6 +448,7 @@ class FakeSupabase:
         self.storage_fail_upload = self.storage_fail_remove = False
         self.fail_insert_tables: set[str] = set()
         self.fail_update_tables: set[str] = set()
+        self.fail_rpc_after: set[str] = set()
         self._clock = 0
 
     def defaults(self, table):

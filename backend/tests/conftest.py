@@ -179,6 +179,53 @@ def make_submission(
     return row
 
 
+def make_assessment(
+    db, course_id=None, name="CAT 1", type_="cat", max_marks=30, weight=None, published=False, creator=None
+) -> dict:
+    """Insert an assessment straight into the fake."""
+    from uuid import uuid4
+
+    row = {
+        **db.defaults("assessments"),
+        "id": str(uuid4()),
+        "course_id": course_id or COURSE_A,
+        "name": name,
+        "type": type_,
+        "max_marks": max_marks,
+        "weight": weight,
+        "published": published,
+        "created_by": creator or L1,
+    }
+    db.tables.setdefault("assessments", []).append(row)
+    return row
+
+
+def make_mark(db, assessment, student_id=None, mark=20, feedback=None) -> dict:
+    """Insert a student's mark straight into the fake."""
+    marks = db.tables.setdefault("assessment_marks", [])
+    row = {
+        "id": f"m{len(marks) + 1}",
+        "assessment_id": assessment["id"],
+        "student_id": student_id or S1,
+        "mark": mark,
+        "feedback": feedback,
+        "entered_by": L1,
+        "entered_at": "2026-10-01T10:00:00+00:00",
+        "updated_at": "2026-10-01T10:00:00+00:00",
+    }
+    marks.append(row)
+    return row
+
+
+def assert_grading_invariants(db) -> None:
+    """The same rule the database enforces with submissions_grading_consistency (migration 0007)."""
+    for s in db.tables.get("submissions", []):
+        if s["status"] == "graded":
+            assert s["mark"] is not None and s["graded_by"] is not None and s["graded_at"] is not None, s
+        else:
+            assert s["mark"] is None and not s["grade_released"], s
+
+
 def bearer(uid: str) -> dict:
     return {"Authorization": f"Bearer tok-{uid}"}
 
