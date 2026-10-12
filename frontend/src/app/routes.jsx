@@ -6,6 +6,7 @@ import Landing from '../pages/Landing.jsx'
 import Login from '../pages/auth/Login.jsx'
 import NotFound from '../pages/NotFound.jsx'
 import Placeholder from '../pages/Placeholder.jsx'
+import LecturerDashboard from '../pages/lecturer/LecturerDashboard.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -36,7 +37,7 @@ const roleRoutes = (role, list) => (
   <Route element={<RequireRole role={role} />}>
     <Route path={`/${role}`} element={<AppShell role={role} />}>
       {list.map(([path, title, phase]) => (
-        path === '' ? <Route key="index" index element={P(title, phase)} /> : <Route key={path} path={path} element={P(title, phase)} />
+        path === '' ? <Route key="index" index element={role === 'lecturer' ? <LecturerDashboard /> : P(title, phase)} /> : <Route key={path} path={path} element={P(title, phase)} />
       ))}
     </Route>
   </Route>
