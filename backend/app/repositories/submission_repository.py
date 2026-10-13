@@ -135,6 +135,21 @@ def apply_grade(
     ).execute()
 
 
+def unreleased_graded_student_ids(assignment_id: UUID | str) -> list[str]:
+    """Students with a graded submission whose grade is not yet released (who a bulk release will reveal)."""
+    rows = (
+        _table()
+        .select("student_id")
+        .eq("assignment_id", str(assignment_id))
+        .eq("status", "graded")
+        .is_("grade_released", "false")
+        .limit(100000)
+        .execute()
+        .data
+    )
+    return [r["student_id"] for r in rows]
+
+
 def release_all(assignment_id: UUID | str, actor_id: UUID | str, released: bool) -> int:
     """Atomic bulk release/hide of every graded submission of an assignment. Returns the rows changed."""
     res = (

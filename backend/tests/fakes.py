@@ -33,6 +33,8 @@ TABLE_DEFAULTS = {
     },
     "assessments": {"weight": None, "published": False},
     "attendance_sessions": {"topic": None},
+    "announcements": {"published": False, "published_at": None},
+    "notifications": {"link": None, "is_read": False, "read_at": None},
     "submissions": {
         "mark": None,
         "feedback": None,
@@ -433,12 +435,107 @@ def _rpc_upsert_attendance_records(db, p):
     return {"created": created, "updated": updated, "unchanged": unchanged}
 
 
+FAKE_NOW = "2026-10-05T12:00:00+00:00"
+
+
+def _rpc_notify_course_students(db, p):
+    """Mirrors notify_course_students(): one notification per ACTIVELY enrolled student."""
+    n = 0
+    for e in list(db.tables.get("course_enrollments", [])):
+        if e["course_id"] == p["p_course"] and e["status"] == "active":
+            Query(db, "notifications").insert(
+                {
+                    "user_id": e["student_id"],
+                    "type": p["p_type"],
+                    "title": p["p_title"],
+                    "message": p["p_message"],
+                    "link": p["p_link"],
+                }
+            ).execute()
+            n += 1
+    return n
+
+
+def _assigned(db, course_id, lecturer_id):
+    return any(
+        cl["course_id"] == course_id and cl["lecturer_id"] == lecturer_id
+        for cl in db.tables.get("course_lecturers", [])
+    )
+
+
+def _announcement_notice(db, a):
+    return _rpc_notify_course_students(
+        db,
+        {
+            "p_course": a["course_id"],
+            "p_type": "announcement",
+            "p_title": "New announcement: " + a["title"],
+            "p_message": a["body"][:200],
+            "p_link": "/student/courses/" + a["course_id"],
+        },
+    )
+
+
+def _rpc_create_announcement(db, p):
+    """Mirrors create_announcement(): row + audit + (when published) notifications, one transaction."""
+    if not _assigned(db, p["p_course"], p["p_actor"]):
+        raise Exception("author is not assigned to this course (23514)")
+    row = (
+        Query(db, "announcements")
+        .insert(
+            {
+                "course_id": p["p_course"],
+                "title": p["p_title"],
+                "body": p["p_body"],
+                "published": p["p_publish"],
+                "published_at": FAKE_NOW if p["p_publish"] else None,
+                "created_by": p["p_actor"],
+            }
+        )
+        .execute()
+        .data[0]
+    )
+    action = "announcement.publish" if p["p_publish"] else "announcement.create"
+    new = {"course_id": p["p_course"], "title": p["p_title"], "published": p["p_publish"]}
+    _audit(db, p["p_actor"], action, "announcement", row["id"], None, new)
+    n = _announcement_notice(db, row) if p["p_publish"] else 0
+    return {"announcement": row, "notified": n}
+
+
+def _rpc_update_announcement(db, p):
+    """Mirrors update_announcement(): changes + audit + first-publication notifications."""
+    row = next((a for a in db.tables.get("announcements", []) if a["id"] == p["p_id"]), None)
+    if row is None:
+        raise Exception("announcement not found (P0002)")
+    if not _assigned(db, row["course_id"], p["p_actor"]):
+        raise Exception("author is not assigned to this course (23514)")
+    old_v, new_v, action = {}, {}, "announcement.update"
+    for key in ("title", "body", "published"):
+        if key in p["p_changes"] and p["p_changes"][key] != row[key]:
+            old_v[key], new_v[key] = row[key], p["p_changes"][key]
+    if "published" in new_v:
+        action = "announcement.publish" if new_v["published"] else "announcement.unpublish"
+    if not new_v:
+        return {"announcement": dict(row), "notified": 0}
+    first_publish = new_v.get("published") is True and row["published_at"] is None
+    row.update(new_v)
+    row["updated_at"] = "2026-10-05T12:30:00+00:00"
+    if first_publish:
+        row["published_at"] = FAKE_NOW
+    _audit(db, p["p_actor"], action, "announcement", row["id"], old_v, new_v)
+    n = _announcement_notice(db, row) if first_publish else 0
+    return {"announcement": dict(row), "notified": n}
+
+
 RPC_HANDLERS = {
     "provision_profile": _rpc_provision_profile,
     "apply_grade": _rpc_apply_grade,
     "release_grades": _rpc_release_grades,
     "upsert_assessment_marks": _rpc_upsert_assessment_marks,
     "upsert_attendance_records": _rpc_upsert_attendance_records,
+    "notify_course_students": _rpc_notify_course_students,
+    "create_announcement": _rpc_create_announcement,
+    "update_announcement": _rpc_update_announcement,
 }
 
 

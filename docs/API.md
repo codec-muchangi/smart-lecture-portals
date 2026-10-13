@@ -124,19 +124,25 @@ Example: CAT 1 (24/30, weight 15) and CAT 2 (40/50, weight 25) with an unmarked 
 
 Assignment grades and assessment marks are **separate**: an assignment grade (above) is feedback on one submission; an assessment mark feeds the course result. Nothing is copied automatically between them (the SRS defines no link, so none was invented).
 
-## Announcements
-| Method | Path | Access | Notes |
-|---|---|---|---|
-| GET | `/courses/{course_id}/announcements` | S,L | S sees published only |
-| POST | `/courses/{course_id}/announcements` | L | `{title,body,published?}`; publishing creates notifications |
-| PATCH | `/announcements/{announcement_id}` | L | Edit / publish / unpublish |
+## Announcements — implemented in Phase 7
+Same course-scope rules as the other course resources: a lecturer must be assigned to the course (404 otherwise), a student actively enrolled (404 otherwise); writing endpoints return **403** to students and **409** when the course is `archived`/`inactive` (reading still works).
 
-## Notifications
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/notifications` | A | Own only; `is_read`, pagination; header `X-Unread-Count` |
-| PATCH | `/notifications/{id}/read` | A | Own only |
-| POST | `/notifications/read-all` | A | Convenience |
+| POST | `/courses/{course_id}/announcements` | L | Body (strict): `title` (1 to 200, trimmed, required), `body` (1 to 5000, required), `published` (strict true/false, default **false** = draft). 201 + the announcement; `notified` = students told. Publishing on create notifies every actively enrolled student **in the same database transaction** as the announcement and its audit row (`announcement.create`, or `announcement.publish` when published) |
+| GET | `/courses/{course_id}/announcements` | S,L | Paginated (`page`, `page_size` ≤ 100). **Students see published announcements only**, most recently published first; lecturers see everything including drafts, newest first |
+| PATCH | `/announcements/{announcement_id}` | L | Any of `title`, `body`, `published` (none can be null; an empty body ⇒ 400). `published: true` on a draft sets `published_at` and **notifies the students once**; unpublishing hides it from students but keeps `published_at`; re-publishing later does **not** notify again; editing never notifies. Sending identical values changes and audits nothing. Audit actions `announcement.update`, `announcement.publish`, `announcement.unpublish` with old and new values. Response `notified` = students told by this call |
+
+Announcements are never hard-deleted; unpublish one to hide it.
+
+## Notifications — implemented in Phase 7
+Every user (student or lecturer) has their own inbox. No user id is ever accepted from the client: another user's notification is simply **404**.
+
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/notifications` | A | Own notifications, newest first. Query: `is_read` (true/false), `page`, `page_size` ≤ 100. Item: `id`, `type`, `title`, `message`, `link` (an app route such as `/student/assignments/{id}`), `is_read`, `created_at`, `read_at`. The response header **`X-Unread-Count`** is the caller's total unread count, independent of the filter and page (it is exposed to browsers through CORS) |
+| PATCH | `/notifications/{id}/read` | A | Marks one as read (FR-NOT-04); already-read keeps its original `read_at`. 404 if it is not yours |
+| POST | `/notifications/read-all` | A | Marks all of the caller's unread notifications; returns `{updated: n}` |
 
 ## Timetable
 | Method | Path | Access | Notes |
@@ -172,5 +178,15 @@ Assignment grades and assessment marks are **separate**: an assignment grade (ab
 - Files are served only through signed URLs with `Content-Disposition: attachment`, so uploaded content is never rendered inline.
 - No malware scanning in v1.0 (SRS 14 says to consider it before production): treat ZIP/Office downloads as untrusted by students' devices, and add a scanner (for example ClamAV) before going live.
 
-## Notification events
-`assignment_published`, `marks_released`, `grade_released`, `material_added`, `announcement` → fan-out to active enrolled students in the same transaction as the triggering change.
+## Notification events (FR-NOT-03, AT-18)
+Notifications go to the **actively enrolled** students of the course; withdrawn students and other courses' students get none. The event is raised only when something **becomes visible**, never for drafts, edits, hiding or repeats:
+
+| Type | Raised when | Title | Link |
+|---|---|---|---|
+| `announcement` | an announcement is published for the first time (create with `published: true`, or first `PATCH published: true`) | `New announcement: {title}` (message = first 200 characters) | `/student/courses/{course_id}` |
+| `assignment_published` | an assignment is created published, or a draft is published | `New assignment: {title}` (message = due date, UTC) | `/student/assignments/{id}` |
+| `material_added` | a material is uploaded published, or a draft is published | `New material: {title}` | `/student/courses/{course_id}/materials` |
+| `marks_released` | an assessment is published | `Marks released: {name}` | `/student/marks` |
+| `grade_released` | a submission's grade becomes visible to its student (single release, or bulk release: only the students it reveals) | `Grade released: {assignment title}` | `/student/assignments/{id}` |
+
+**Delivery guarantees:** announcement notifications are written in the same transaction as the announcement. The other four are **best effort**: they are created right after the lecturer's change is saved, and a failure is logged but never blocks or undoes the change. Notifications are not created for lecturers in this version, and none are sent by email/SMS/push (future enhancement, SRS 2.3).
