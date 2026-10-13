@@ -7,7 +7,7 @@ close them instead (academic history, SRS 15).
 
 import logging
 import uuid
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import BinaryIO
 from uuid import UUID
 
@@ -18,7 +18,7 @@ from app.repositories import assignment_repository as repo
 from app.repositories import submission_repository as submission_repo
 from app.schemas.assignment import AssignmentCreate
 from app.schemas.common import CurrentUser
-from app.services import audit_service, storage_service, upload_service
+from app.services import audit_service, notification_service, storage_service, upload_service
 from app.services.storage_service import MATERIALS_BUCKET
 from app.services.submission_view import student_view
 from app.utils import clock
@@ -149,7 +149,21 @@ def create_assignment(user: CurrentUser, course_id: UUID, body: AssignmentCreate
             "published": body.published,
         },
     )
+    if body.published:
+        _notify_published(course["id"], row["id"], body.title, body.due_at)
     return get_assignment(user, UUID(str(row["id"])))
+
+
+def _notify_published(course_id, assignment_id, title: str, due_at) -> None:
+    """FR-NOT-03: students are told when an assignment becomes visible to them (best effort)."""
+    due = due_at.astimezone(UTC).strftime("%d %b %Y, %H:%M UTC")
+    notification_service.notify_course(
+        course_id,
+        "assignment_published",
+        f"New assignment: {title}",
+        f"Due {due}",
+        f"/student/assignments/{assignment_id}",
+    )
 
 
 def _differs(field: str, old, new) -> bool:
@@ -200,6 +214,8 @@ def update_assignment(user: CurrentUser, assignment_id: UUID, requested: dict) -
         old=old,
         new=db_changes,
     )
+    if new_published and not assignment["published"]:
+        _notify_published(course["id"], assignment_id, changes.get("title", assignment["title"]), new_due)
     return get_assignment(user, assignment_id)
 
 

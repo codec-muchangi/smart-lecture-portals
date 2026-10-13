@@ -122,3 +122,10 @@ erDiagram
 - **`upsert_attendance_records(session, actor, rows)`** (service role only): saves a whole batch and one audit row per change in **one transaction**: `attendance.mark` for a first mark, `attendance.correct` (old and new status/note) for a change; identical rows are left alone. Returns `{created, updated, unchanged}`.
 - Decisions: attendance percentage uses the default policy in ERD note 4 (`v_student_attendance_summary` from 0002 and `attendance_calc.py` agree); a student who withdraws keeps their past records, but the roster and marking only include **active** students; sessions and records are never deleted.
 
+## Migration 0009 (Phase 7) — announcements & notifications
+- **`announcements_publish_consistency`** (CHECK): a published announcement always has `published_at`. **`trg_announcements_guard`**: the author must be a lecturer assigned to the course; course and author are immutable; never hard-deleted (unpublish instead).
+- **`notifications_read_consistency`** (CHECK): `is_read` is true exactly when `read_at` is set. **`trg_notifications_guard`**: a notification's owner, type, title, message, link and creation time never change, and a read notification never becomes unread. (Notifications stay the one table that cascades with its user, ERD note on transient data.)
+- **Transactional functions** (service role only): `notify_course_students` (one notification per actively enrolled student, returns the count), `create_announcement` and `update_announcement` (the change, its audit row and, on the first publication, the students' notifications, all in one transaction).
+- Decisions: students are notified only the first time an announcement is published; the other event notifications (assignment, material, marks, grade) are created by the backend right after the change and are best effort; notification `link` values are front-end routes (`docs/FRONTEND.md`).
+- `scripts/verify_database.py` now applies nine migrations, loads the demo seed on top and runs 163 checks.
+

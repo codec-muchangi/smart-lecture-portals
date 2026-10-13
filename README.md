@@ -60,6 +60,9 @@ Lecturers grade assignment submissions (mark + feedback, release when ready, or 
 ## Attendance
 Lecturers create lecture sessions and mark their actively enrolled students (present, absent, late, excused) in one saved request, with every first mark and correction audited; students see only their own history and attendance percentage. See `docs/PHASE6_BACKEND.md` for the rules, the setup steps and the live-check list.
 
+## Announcements and notifications
+Lecturers publish course announcements; students enrolled in the course see only the published ones. Students get in-app notifications for new announcements, assignments and materials and for released marks and grades, and mark them read. See `docs/PHASE7_BACKEND.md` for the rules, the setup steps and the live-check list.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py

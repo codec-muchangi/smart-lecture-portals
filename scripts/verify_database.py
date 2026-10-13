@@ -185,9 +185,51 @@ ok("mark session 2 (S1 late, S2 absent)", f"select upsert_attendance_records('{S
 check("summary view: S1 100% (present + late of 2)", f"select attended||'/'||counted_sessions||'/'||attendance_pct from v_student_attendance_summary where student_id='{U['s1']}';", "2/2/100.00")
 check("summary view: S2 excused is excluded (0 of 1)", f"select excused||'/'||counted_sessions||'/'||attendance_pct from v_student_attendance_summary where student_id='{U['s2']}';", "1/1/0.00")
 
+print("== announcements and notifications ==")
+ok("draft announcement", f"select create_announcement('{C}','{U['l1']}','Draft','Not yet',false);")
+check("a draft notifies nobody", "select count(*) from notifications;", "0")
+check("draft audit action", "select count(*) from audit_logs where action='announcement.create';", "1")
+check("published on create notifies the 2 enrolled students", f"select create_announcement('{C}','{U['l1']}','Quiz','Chapters 1 to 3',true)->>'notified';", "2")
+check("each student got one notification", f"select count(*) from notifications where user_id in ('{U['s1']}','{U['s2']}') and type='announcement';", "2")
+check("the non-enrolled student got none", f"select count(*) from notifications where user_id='{U['s3']}';", "0")
+check("notification content", f"select title||'|'||message||'|'||link from notifications where user_id='{U['s1']}';", f"New announcement: Quiz|Chapters 1 to 3|/student/courses/{C}")
+check("publish audit row", "select count(*) from audit_logs where action='announcement.publish';", "1")
+bad("an unassigned lecturer cannot author an announcement", f"select create_announcement('{C}','{U['l2']}','X','Y',false);", "not assigned")
+check("nothing was saved by the failed call", "select count(*) from announcements where title='X';", "0")
+bad("blank title is rejected by the database", f"select create_announcement('{C}','{U['l1']}','   ','Y',false);", "check constraint")
+DRAFT = val("select id from announcements where title='Draft';")
+ok("first publication of the draft", f"select update_announcement('{DRAFT}','{U['l1']}','{{\"published\": true}}'::jsonb);")
+check("publishing the draft notified both students", "select count(*) from notifications where title='New announcement: Draft';", "2")
+check("published_at was set", f"select published_at is not null from announcements where id='{DRAFT}';", "t")
+ok("unpublish", f"select update_announcement('{DRAFT}','{U['l1']}','{{\"published\": false}}'::jsonb);")
+check("unpublish keeps published_at", f"select published_at is not null from announcements where id='{DRAFT}';", "t")
+ok("re-publish", f"select update_announcement('{DRAFT}','{U['l1']}','{{\"published\": true}}'::jsonb);")
+check("re-publishing does not notify again", "select count(*) from notifications where title='New announcement: Draft';", "2")
+check("publish/unpublish audit rows", "select count(*) from audit_logs where action in ('announcement.unpublish') and new_value->>'published'='false';", "1")
+ok("edit the body", f"select update_announcement('{DRAFT}','{U['l1']}','{{\"body\": \"Changed\"}}'::jsonb);")
+check("edit audit keeps old and new", "select (old_value->>'body') || '>' || (new_value->>'body') from audit_logs where action='announcement.update';", "Not yet>Changed")
+check("a no-change update reports 0 notified", f"select update_announcement('{DRAFT}','{U['l1']}','{{\"body\": \"Changed\"}}'::jsonb)->>'notified';", "0")
+check("a no-change update writes no audit row", "select count(*) from audit_logs where action='announcement.update';", "1")
+bad("updating a missing announcement fails", f"select update_announcement('00000000-0000-0000-0000-00000000ffff','{U['l1']}','{{}}'::jsonb);", "not found")
+bad("a published announcement must have a publication time", f"update announcements set published_at = null where id='{DRAFT}';", "announcements_publish_consistency")
+bad("announcement course is immutable", f"update announcements set created_by='{U['l2']}' where id='{DRAFT}';", "immutable")
+bad("hard delete of an announcement is blocked", "delete from announcements;", "never hard-deleted")
+
+NOTE = val(f"select id from notifications where user_id='{U['s1']}' limit 1;")
+bad("notification content is immutable", f"update notifications set title='Hacked' where id='{NOTE}';", "immutable")
+bad("a notification cannot be re-addressed", f"update notifications set user_id='{U['s2']}' where id='{NOTE}';", "immutable")
+bad("is_read without read_at violates the consistency rule", f"update notifications set is_read=true where id='{NOTE}';", "notifications_read_consistency")
+ok("mark a notification read", f"update notifications set is_read=true, read_at=now() where id='{NOTE}';")
+bad("a read notification cannot become unread", f"update notifications set is_read=false, read_at=null where id='{NOTE}';", "cannot become unread")
+ok("withdraw S2", f"update course_enrollments set status='withdrawn' where course_id='{C}' and student_id='{U['s2']}';")
+check("withdrawn students are not notified", f"select notify_course_students('{C}','general','T','M',null);", "1")
+ok("re-enrol S2", f"update course_enrollments set status='active' where course_id='{C}' and student_id='{U['s2']}';")
+
 print("== client roles cannot reach any of it ==")
 for fn in ("apply_grade(uuid, uuid, text, submission_status, numeric, text, boolean, boolean)",
            "release_grades(uuid, uuid, boolean)", "upsert_assessment_marks(uuid, uuid, jsonb)", "upsert_attendance_records(uuid, uuid, jsonb)",
+           "notify_course_students(uuid, notification_type, text, text, text)",
+           "create_announcement(uuid, uuid, text, text, boolean)", "update_announcement(uuid, uuid, jsonb)",
            "provision_profile(uuid, user_role, text, text, text, text, text, smallint, text, text, text)"):
     for role in ("anon", "authenticated"):
         check(f"{role} cannot execute {fn.split('(')[0]}", f"select has_function_privilege('{role}', '{fn}', 'execute');", "f")
