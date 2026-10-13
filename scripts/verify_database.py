@@ -157,9 +157,37 @@ bad("hard delete of a mark is blocked", "delete from assessment_marks;", "never 
 bad("hard delete of an assessment is blocked", "delete from assessments;", "never hard-deleted")
 bad("mark/assessment key is immutable", f"update assessment_marks set student_id='{U['s3']}' where assessment_id='{AS}' and student_id='{U['s1']}';", "immutable")
 
+print("== attendance ==")
+SE, SE2 = "00000000-0000-0000-0000-0000000000e1", "00000000-0000-0000-0000-0000000000e2"
+ok("session 1", f"insert into attendance_sessions (id, course_id, session_date, start_time, end_time, topic, created_by) values ('{SE}','{C}','2026-10-05','09:00','11:00','Intro','{U['l1']}');")
+bad("duplicate session (course, date, start) is blocked (FR-ATT-06)", f"insert into attendance_sessions (course_id, session_date, start_time, end_time, created_by) values ('{C}','2026-10-05','09:00','10:00','{U['l1']}');", "duplicate key")
+bad("end time must be after start time", f"insert into attendance_sessions (course_id, session_date, start_time, end_time, created_by) values ('{C}','2026-10-06','09:00','09:00','{U['l1']}');", "check constraint")
+bad("unassigned lecturer cannot create a session", f"insert into attendance_sessions (course_id, session_date, start_time, end_time, created_by) values ('{C}','2026-10-06','09:00','10:00','{U['l2']}');", "not assigned")
+bad("session course is immutable", f"update attendance_sessions set created_by='{U['l2']}' where id='{SE}';", "immutable")
+bad("hard delete of a session is blocked", "delete from attendance_sessions;", "never hard-deleted")
+ok("bulk mark: create two", f"select upsert_attendance_records('{SE}','{U['l1']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"present\"}},{{\"student_id\":\"{U['s2']}\",\"status\":\"absent\",\"note\":\"sick\"}}]'::jsonb);")
+check("two records stored", f"select count(*) from attendance_records where session_id='{SE}';", "2")
+check("two attendance.mark audit rows", "select count(*) from audit_logs where action='attendance.mark';", "2")
+check("identical resubmission is 'unchanged'", f"select upsert_attendance_records('{SE}','{U['l1']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"present\"}}]'::jsonb)->>'unchanged';", "1")
+check("no audit row for an unchanged record", "select count(*) from audit_logs where action like 'attendance.%';", "2")
+ok("correct a record", f"select upsert_attendance_records('{SE}','{U['l1']}','[{{\"student_id\":\"{U['s2']}\",\"status\":\"excused\",\"note\":\"sick, letter\"}}]'::jsonb);")
+check("attendance.correct keeps old and new", "select (old_value->>'status') || '>' || (new_value->>'status') from audit_logs where action='attendance.correct';", "absent>excused")
+check("still one record per student (AT-19)", f"select count(*) from attendance_records where session_id='{SE}';", "2")
+bad("one bad row rejects the whole batch", f"select upsert_attendance_records('{SE}','{U['l1']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"late\"}},{{\"student_id\":\"{U['s3']}\",\"status\":\"present\"}}]'::jsonb);", "not actively enrolled")
+check("nothing from the failed batch was saved (S1 still present)", f"select status from attendance_records where session_id='{SE}' and student_id='{U['s1']}';", "present")
+bad("an invalid status is rejected", f"select upsert_attendance_records('{SE}','{U['l1']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"sleeping\"}}]'::jsonb);", "invalid input value")
+bad("marking a missing session fails", f"select upsert_attendance_records('00000000-0000-0000-0000-00000000ffff','{U['l1']}','[]'::jsonb);", "not found")
+bad("an unassigned lecturer cannot mark", f"select upsert_attendance_records('{SE}','{U['l2']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"late\"}}]'::jsonb);", "assigned to this course")
+bad("record key is immutable", f"update attendance_records set student_id='{U['s3']}' where session_id='{SE}' and student_id='{U['s1']}';", "immutable")
+bad("hard delete of a record is blocked", "delete from attendance_records;", "never hard-deleted")
+ok("session 2", f"insert into attendance_sessions (id, course_id, session_date, start_time, end_time, created_by) values ('{SE2}','{C}','2026-10-12','09:00','11:00','{U['l1']}');")
+ok("mark session 2 (S1 late, S2 absent)", f"select upsert_attendance_records('{SE2}','{U['l1']}','[{{\"student_id\":\"{U['s1']}\",\"status\":\"late\"}},{{\"student_id\":\"{U['s2']}\",\"status\":\"absent\"}}]'::jsonb);")
+check("summary view: S1 100% (present + late of 2)", f"select attended||'/'||counted_sessions||'/'||attendance_pct from v_student_attendance_summary where student_id='{U['s1']}';", "2/2/100.00")
+check("summary view: S2 excused is excluded (0 of 1)", f"select excused||'/'||counted_sessions||'/'||attendance_pct from v_student_attendance_summary where student_id='{U['s2']}';", "1/1/0.00")
+
 print("== client roles cannot reach any of it ==")
 for fn in ("apply_grade(uuid, uuid, text, submission_status, numeric, text, boolean, boolean)",
-           "release_grades(uuid, uuid, boolean)", "upsert_assessment_marks(uuid, uuid, jsonb)",
+           "release_grades(uuid, uuid, boolean)", "upsert_assessment_marks(uuid, uuid, jsonb)", "upsert_attendance_records(uuid, uuid, jsonb)",
            "provision_profile(uuid, user_role, text, text, text, text, text, smallint, text, text, text)"):
     for role in ("anon", "authenticated"):
         check(f"{role} cannot execute {fn.split('(')[0]}", f"select has_function_privilege('{role}', '{fn}', 'execute');", "f")
@@ -169,6 +197,17 @@ for view in ("v_course_roster", "v_submission_overview", "v_student_attendance_s
 check("every public table has RLS on", "select count(*) from pg_tables where schemaname='public' and not rowsecurity;", "0")
 check("materials bucket limits", "select file_size_limit||':'||array_length(allowed_mime_types,1) from storage.buckets where id='materials';", "26214400:8")
 check("submissions bucket limits", "select file_size_limit||':'||array_length(allowed_mime_types,1) from storage.buckets where id='submissions';", "26214400:8")
+
+print("== demo seed (db/seed/seed_demo.sql) loads on top of every migration ==")
+SEED_S, SEED_L = "00000000-0000-0000-0000-0000000000f1", "00000000-0000-0000-0000-0000000000f2"
+ok("seed auth users", f"insert into auth.users (id, email) values ('{SEED_S}'::uuid,'student@demo.test'), ('{SEED_L}'::uuid,'lecturer@demo.test');")
+seed = subprocess.run([PSQL, URI, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-v", f"student_id={SEED_S}", "-v", f"lecturer_id={SEED_L}",
+                       "-f", str(ROOT / "db" / "seed" / "seed_demo.sql")], capture_output=True, text=True)
+print(("PASS " if seed.returncode == 0 else "FAIL ") + "seed script runs" + ("" if seed.returncode == 0 else "\n     " + (seed.stdout + seed.stderr)[:400]))
+if seed.returncode != 0:
+    fails.append("seed script runs")
+check("seed: three sample lecture sessions", "select count(*) from attendance_sessions where topic like 'Lecture %';", "3")
+check("seed: demo student attendance is 66.67% (present + late of 3)", f"select attendance_pct from v_student_attendance_summary where student_id='{SEED_S}';", "66.67")
 
 print("\nFAILED:" if fails else "\nALL REAL-DATABASE CHECKS PASSED", fails if fails else "")
 sys.exit(1 if fails else 0)

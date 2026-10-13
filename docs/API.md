@@ -9,7 +9,7 @@ Interactive docs: FastAPI `/docs` (OpenAPI). This file is the contract baseline 
 - **Errors:** `{ "code": "FORBIDDEN", "message": "…", "details": {…} }` — never stack traces.
 - **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 409 conflict · 422 schema validation · 500 unexpected.
 - **Existence policy:** resources in a course the caller has no access to return **404** (no existence leak); role-mismatch on a role-only endpoint returns **403**.
-- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` arrives with Phase 5).
+- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` since Phase 5).
 
 Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = any authenticated.
 
@@ -91,14 +91,18 @@ Route changes from the SRS baseline (allowed by SRS section 10, "route names may
 
 Storage layout: `submissions/{course_id}/{assignment_id}/{student_id}/{upload_id}/{sanitised_name}`. For a first submission `upload_id` equals the submission id (exactly as SRS 14); each replacement gets a fresh `upload_id` folder so it can never collide with the file it replaces, and the old file is then removed. Assignment attachments live in the private `materials` bucket at `{course_id}/assignments/{assignment_id}/{upload_id}/{sanitised_name}`.
 
-## Attendance
+## Attendance — implemented in Phase 6
+Lecturer endpoints return **403** to students before any lookup; a lecturer not assigned to the course gets **404** (never reveals other courses). A student sees only their own records of a course they are actively enrolled in. Creating sessions and marking are blocked with **409** when the course is `archived`/`inactive`; reading history is not. Validation errors found by the service (not the schema) are `400 VALIDATION_ERROR`; malformed bodies are `422`.
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/courses/{course_id}/attendance/sessions` | L | `{session_date,start_time,end_time,topic?}`; 409 on duplicate; pre-generates no records (marking UI loads roster) |
-| GET | `/courses/{course_id}/attendance/sessions` | L | Paginated |
-| GET | `/attendance/sessions/{session_id}` | L | Session + roster with current statuses |
-| POST | `/attendance/sessions/{session_id}/records` | L | `{records:[{student_id,status,note?}]}` upsert in one transaction; only enrolled students; corrections write audit rows |
-| GET | `/courses/{course_id}/attendance/me` | S | History + `attendance_pct` |
+| POST | `/courses/{course_id}/attendance/sessions` | L | Body (strict): `session_date` (`YYYY-MM-DD`, from 2000-01-01, at most 365 days ahead), `start_time`, `end_time` (`HH:MM`[`:SS`], no time zone, end after start), `topic?` (≤ 200, blank = none). **409** if the course already has a session on that date starting at that time (FR-ATT-06). Pre-generates no records. Returns the session with `records_marked: 0` (201). Audit `attendance.session_create` |
+| GET | `/courses/{course_id}/attendance/sessions` | L | Paginated (`page`, `page_size` ≤ 100), newest first (date, then start time); each item has `records_marked` |
+| GET | `/attendance/sessions/{session_id}` | L | The session plus `summary` (`present`, `absent`, `late`, `excused`, `unmarked` among **actively enrolled** students) and `roster`: a page (`page`, `page_size` ≤ 200 default 100, `q` search by name/registration/email) of actively enrolled students with `status` (null = not marked yet), `note`, `marked_at`, `marked_by` |
+| POST | `/attendance/sessions/{session_id}/records` | L | Body (strict): `records: [{student_id, status, note?}]`, 1 to 500 rows, `status` one of `present`, `absent`, `late`, `excused`, `note` ≤ 500. Every row is validated first and **all problems are listed** (`details.rows`: `index`, `student_id`, `message`); a student not actively enrolled or repeated in the request ⇒ **400 `VALIDATION_ERROR`** and nothing is saved. Otherwise one transaction saves every record and one audit row per change: a first mark is `attendance.mark`, a change of status or note is `attendance.correct` (old and new values). Re-sending identical data changes nothing. Returns `{created, updated, unchanged, total}`. A session dated more than one day after today (UTC) ⇒ **409** (cannot mark the future; the day of grace covers time zones). A database-rule rejection because data changed meanwhile ⇒ 409 "reload and try again" |
+| GET | `/courses/{course_id}/attendance/me` | S | Read-only. `items`: the student's own records, newest session first (`session_id`, `session_date`, `start_time`, `end_time`, `topic`, `status`, `note`, `marked_at`); `summary`: `present`, `absent`, `late`, `excused`, `attended`, `counted_sessions`, `attendance_pct` |
+
+**Percentage policy (FR-ATT-05; default until the institution confirms its own):** `attendance_pct = (present + late) / (present + late + absent) × 100`, rounded half-up to 2 decimals; `excused` sessions are left out; `null` while nothing counts. One calculator (`services/attendance_calc.py`) is used by the API and mirrored by the SQL view `v_student_attendance_summary`.
 
 ## Marks & grading — implemented in Phase 5
 Course scope rule as for Courses. Lecturer-only endpoints return **403** to students before any lookup; students only ever see **published** assessments and **their own** marks (AT-05, AT-12). Writes are blocked with **409** when the course is `archived`/`inactive`.
