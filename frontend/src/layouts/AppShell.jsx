@@ -51,14 +51,14 @@ const NAV = {
   ],
   student: [
     { label: 'Dashboard', icon: 'grid_view', to: '', end: true },
-    { label: 'My Courses', icon: 'menu_book', to: 'courses' },
-    { label: 'Attendance', icon: 'how_to_reg', to: 'attendance' },
-    { label: 'Marks', icon: 'grade', to: 'marks' },
+    { label: 'My Enrolled Courses', icon: 'menu_book', to: 'courses' },
+    { label: 'Materials Hub', icon: 'folder_shared', course: true },
+    { label: 'Assignments & Submissions', icon: 'assignment', course: true },
+    { label: 'Attendance Tracker', icon: 'fact_check', to: 'attendance' },
+    { label: 'Marks & Results', icon: 'analytics', to: 'marks' },
     { label: 'Announcements', icon: 'campaign', to: 'announcements' },
-    { label: 'Notifications', icon: 'notifications', to: 'notifications' },
-    { label: 'Timetable', icon: 'calendar_today', to: 'timetable' },
-    { label: 'Profile', icon: 'person', to: 'profile' },
-    { label: 'Settings', icon: 'settings', to: 'settings' },
+    { label: 'Timetable & Schedule', icon: 'calendar_today', to: 'timetable' },
+    { label: 'Profile & Settings', icon: 'settings', to: 'profile' },
   ],
 }
 
@@ -273,7 +273,7 @@ function AppShell({ role }) {
                 type="search"
                 value={term}
                 onChange={(event) => setTerm(event.target.value)}
-                placeholder="Search courses"
+                placeholder={role === 'student' ? 'Search modules, lectures, exams...' : 'Search courses'}
                 aria-label="Search courses"
                 maxLength={100}
               />
@@ -522,6 +522,9 @@ const STYLES = `
   .slps-header { left: var(--sidebar-w); }
   .slps-menu-btn { display: none; }
   .slps-search { display: flex; }
+}
+@media (min-width: 1280px) {
+  .slps-search { width: 288px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .slps-sidebar { transition: none; }
