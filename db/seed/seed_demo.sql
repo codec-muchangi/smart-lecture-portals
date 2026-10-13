@@ -17,6 +17,10 @@ insert into assessments (course_id, name, type, max_marks, weight, created_by)
   values ('00000000-0000-0000-0000-000000003253','CAT 1','cat',30,15,:'lecturer_id');
 insert into attendance_sessions (course_id, session_date, start_time, end_time, topic, created_by)
   select '00000000-0000-0000-0000-000000003253', current_date - g*7, '08:00', '10:00', 'Lecture '||(4-g), :'lecturer_id' from generate_series(1,3) g;
+-- The demo student attended the first two lectures (one late) and missed the latest one.
+insert into attendance_records (session_id, student_id, status, marked_by)
+  select id, :'student_id', case topic when 'Lecture 1' then 'present' when 'Lecture 2' then 'late' else 'absent' end::attendance_status, :'lecturer_id'
+  from attendance_sessions where course_id = '00000000-0000-0000-0000-000000003253';
 insert into announcements (course_id, title, body, published, published_at, created_by)
   values ('00000000-0000-0000-0000-000000003253','Welcome','Welcome to Network Administration.', true, now(), :'lecturer_id');
 insert into timetable_entries (course_id, day_of_week, start_time, end_time, room)
