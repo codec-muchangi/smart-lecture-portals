@@ -115,3 +115,17 @@ erDiagram
 - **Transactional functions** (service role only): `apply_grade` (grade / regrade / release / return, with its audit row), `release_grades` (bulk show/hide with a count and audit row), `upsert_assessment_marks` (a whole batch plus one audit row per change). A change and its audit row therefore **cannot** succeed without each other (SRS 15, FR-MARK-07).
 - Decisions: the weight of an assessment is a percentage of the course total (cap of 100 per course); a returned submission's feedback is visible to the student even though no grade is released; `v_student_course_total` (0002) is kept for future reports, while students' totals come from one tested calculator (`marks_calc.py`).
 - `scripts/verify_database.py` applies all seven migrations to a throw-away PostgreSQL 16 and checks these rules directly (85 checks); CI runs it on every push.
+
+## Migration 0008 (Phase 6) — attendance
+- **`trg_attendance_sessions_guard`**: the creator must be a lecturer assigned to the course; course and creator are immutable; sessions are never hard-deleted. One session per course, date and start time is `UNIQUE(course_id, session_date, start_time)` (0001, FR-ATT-06); `end_time > start_time` is a CHECK (0001).
+- **`trg_attendance_records_guard`**: a record can only be created for an **actively enrolled** student and only by a lecturer assigned to the course; the (session, student) key is immutable; records are never hard-deleted (correct the status instead). One row per student and session is `UNIQUE(session_id, student_id)` (0001, AT-19).
+- **`upsert_attendance_records(session, actor, rows)`** (service role only): saves a whole batch and one audit row per change in **one transaction**: `attendance.mark` for a first mark, `attendance.correct` (old and new status/note) for a change; identical rows are left alone. Returns `{created, updated, unchanged}`.
+- Decisions: attendance percentage uses the default policy in ERD note 4 (`v_student_attendance_summary` from 0002 and `attendance_calc.py` agree); a student who withdraws keeps their past records, but the roster and marking only include **active** students; sessions and records are never deleted.
+
+## Migration 0009 (Phase 7) — announcements & notifications
+- **`announcements_publish_consistency`** (CHECK): a published announcement always has `published_at`. **`trg_announcements_guard`**: the author must be a lecturer assigned to the course; course and author are immutable; never hard-deleted (unpublish instead).
+- **`notifications_read_consistency`** (CHECK): `is_read` is true exactly when `read_at` is set. **`trg_notifications_guard`**: a notification's owner, type, title, message, link and creation time never change, and a read notification never becomes unread. (Notifications stay the one table that cascades with its user, ERD note on transient data.)
+- **Transactional functions** (service role only): `notify_course_students` (one notification per actively enrolled student, returns the count), `create_announcement` and `update_announcement` (the change, its audit row and, on the first publication, the students' notifications, all in one transaction).
+- Decisions: students are notified only the first time an announcement is published; the other event notifications (assignment, material, marks, grade) are created by the backend right after the change and are best effort; notification `link` values are front-end routes (`docs/FRONTEND.md`).
+- `scripts/verify_database.py` now applies nine migrations, loads the demo seed on top and runs 163 checks.
+

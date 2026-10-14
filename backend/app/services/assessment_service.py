@@ -19,7 +19,7 @@ from app.repositories import assessment_repository as repo
 from app.repositories import course_repository
 from app.schemas.common import CurrentUser
 from app.schemas.marks import AssessmentCreate, MarksBulkRequest
-from app.services import audit_service, marks_calc
+from app.services import audit_service, marks_calc, notification_service
 from app.services.marks_calc import d
 from app.utils.search import safe_search
 
@@ -114,6 +114,14 @@ def update_assessment(user: CurrentUser, assessment_id: UUID, requested: dict) -
         old = {k: assessment[k] for k in changes}
         assessment = repo.update(assessment_id, changes)
         audit_service.record(user.id, "assessment.update", "assessment", assessment_id, old=old, new=changes)
+        if changes.get("published") and not old["published"]:  # FR-NOT-03: marks released
+            notification_service.notify_course(
+                assessment["course_id"],
+                "marks_released",
+                f"Marks released: {assessment['name']}",
+                "Your marks are now available.",
+                "/student/marks",
+            )
     return _out(assessment, repo.mark_counts([str(assessment_id)]).get(str(assessment_id), 0))
 
 

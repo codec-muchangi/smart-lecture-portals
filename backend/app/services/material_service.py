@@ -19,7 +19,7 @@ from app.core.security import assert_course_access, assert_course_lecturer, ensu
 from app.repositories import material_repository as repo
 from app.schemas.common import CurrentUser
 from app.schemas.material import DESCRIPTION_MAX, TITLE_MAX, TITLE_MIN
-from app.services import audit_service, storage_service, upload_service
+from app.services import audit_service, notification_service, storage_service, upload_service
 from app.services.storage_service import MATERIALS_BUCKET
 from app.utils.search import safe_search
 
@@ -149,7 +149,20 @@ def create_material(
             "published": published,
         },
     )
+    if published:
+        _notify_added(course["id"], title)
     return _with_uploader_names([row])[0]
+
+
+def _notify_added(course_id, title: str) -> None:
+    """FR-NOT-03: students are told when a material becomes visible to them (best effort)."""
+    notification_service.notify_course(
+        course_id,
+        "material_added",
+        f"New material: {title}",
+        "A new file is available for this course.",
+        f"/student/courses/{course_id}/materials",
+    )
 
 
 def update_material(user: CurrentUser, material_id: UUID, requested: dict) -> dict:
@@ -160,6 +173,8 @@ def update_material(user: CurrentUser, material_id: UUID, requested: dict) -> di
         old = {k: material.get(k) for k in changes}
         material = repo.update(material_id, changes)
         audit_service.record(user.id, "material.update", "material", material_id, old=old, new=changes)
+        if changes.get("published") and not old["published"]:
+            _notify_added(course["id"], material["title"])
     return _with_uploader_names([material])[0]
 
 

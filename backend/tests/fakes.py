@@ -16,6 +16,8 @@ UNIQUE = {
     "course_lecturers": [("course_id", "lecturer_id")],
     "submissions": [("assignment_id", "student_id")],
     "assessment_marks": [("assessment_id", "student_id")],
+    "attendance_sessions": [("course_id", "session_date", "start_time")],
+    "attendance_records": [("session_id", "student_id")],
 }
 
 # Column defaults the real database applies on insert (tables not listed here have none).
@@ -30,6 +32,9 @@ TABLE_DEFAULTS = {
         "attachment_path": None,
     },
     "assessments": {"weight": None, "published": False},
+    "attendance_sessions": {"topic": None},
+    "announcements": {"published": False, "published_at": None},
+    "notifications": {"link": None, "is_read": False, "read_at": None},
     "submissions": {
         "mark": None,
         "feedback": None,
@@ -62,7 +67,7 @@ class Query:
     def __init__(self, db, table):
         self.db, self.table = db, table
         self.filters, self._op, self._payload = [], "select", None
-        self._single, self._limit, self._range, self._count, self._order = False, None, None, None, None
+        self._single, self._limit, self._range, self._count, self._order = False, None, None, None, []
 
     def select(self, cols="*", count=None):
         self._op, self._count = "select", count
@@ -102,7 +107,7 @@ class Query:
         return self
 
     def order(self, col, desc=False):
-        self._order = (col, desc)
+        self._order.append((col, desc))  # chained .order() calls sort by several columns, like PostgREST
         return self
 
     @staticmethod
@@ -168,8 +173,8 @@ class Query:
             return Result(copy.deepcopy(hit))
         data = copy.deepcopy(self._matching())
         total = len(data)
-        if self._order:
-            data.sort(key=self._sort_key(self._order[0]), reverse=self._order[1])
+        for col, desc in reversed(self._order):  # stable sorts, least significant column first
+            data.sort(key=self._sort_key(col), reverse=desc)
         if self._range:
             data = data[self._range[0] : self._range[1] + 1]
         if self._limit is not None:
@@ -375,11 +380,162 @@ def _rpc_upsert_assessment_marks(db, p):
     return {"created": created, "updated": updated, "unchanged": unchanged}
 
 
+def _rpc_upsert_attendance_records(db, p):
+    """Mirrors upsert_attendance_records(): per-row create/correct with audit, all or nothing."""
+    session = next((x for x in db.tables.get("attendance_sessions", []) if x["id"] == p["p_session"]), None)
+    if session is None:
+        raise Exception("attendance session not found (P0002)")
+    if not any(
+        cl["course_id"] == session["course_id"] and cl["lecturer_id"] == p["p_actor"]
+        for cl in db.tables.get("course_lecturers", [])
+    ):
+        raise Exception("attendance may only be marked by a lecturer assigned to this course (23514)")
+    created = updated = unchanged = 0
+    records = db.tables.setdefault("attendance_records", [])
+    for r in p["p_rows"]:
+        if r["status"] not in ("present", "absent", "late", "excused"):
+            raise Exception(f'invalid input value for enum attendance_status: "{r["status"]}"')
+        enrolled = any(
+            e["course_id"] == session["course_id"]
+            and e["student_id"] == r["student_id"]
+            and e["status"] == "active"
+            for e in db.tables.get("course_enrollments", [])
+        )
+        if not enrolled:
+            raise Exception("student is not actively enrolled in this course (23514)")
+        note = r.get("note") or None
+        existing = next(
+            (x for x in records if x["session_id"] == p["p_session"] and x["student_id"] == r["student_id"]),
+            None,
+        )
+        new = {"student_id": r["student_id"], "status": r["status"], "note": note}
+        if existing is None:
+            records.append(
+                {
+                    "id": f"a{len(records) + 1}",
+                    "session_id": p["p_session"],
+                    "student_id": r["student_id"],
+                    "status": r["status"],
+                    "marked_at": "2026-10-05T12:00:00+00:00",
+                    "marked_by": p["p_actor"],
+                    "note": note,
+                }
+            )
+            _audit(db, p["p_actor"], "attendance.mark", "attendance_session", p["p_session"], None, new)
+            created += 1
+        elif existing["status"] != r["status"] or existing["note"] != note:
+            old = {"student_id": r["student_id"], "status": existing["status"], "note": existing["note"]}
+            existing.update(
+                status=r["status"], note=note, marked_by=p["p_actor"], marked_at="2026-10-05T12:30:00+00:00"
+            )
+            _audit(db, p["p_actor"], "attendance.correct", "attendance_session", p["p_session"], old, new)
+            updated += 1
+        else:
+            unchanged += 1
+    return {"created": created, "updated": updated, "unchanged": unchanged}
+
+
+FAKE_NOW = "2026-10-05T12:00:00+00:00"
+
+
+def _rpc_notify_course_students(db, p):
+    """Mirrors notify_course_students(): one notification per ACTIVELY enrolled student."""
+    n = 0
+    for e in list(db.tables.get("course_enrollments", [])):
+        if e["course_id"] == p["p_course"] and e["status"] == "active":
+            Query(db, "notifications").insert(
+                {
+                    "user_id": e["student_id"],
+                    "type": p["p_type"],
+                    "title": p["p_title"],
+                    "message": p["p_message"],
+                    "link": p["p_link"],
+                }
+            ).execute()
+            n += 1
+    return n
+
+
+def _assigned(db, course_id, lecturer_id):
+    return any(
+        cl["course_id"] == course_id and cl["lecturer_id"] == lecturer_id
+        for cl in db.tables.get("course_lecturers", [])
+    )
+
+
+def _announcement_notice(db, a):
+    return _rpc_notify_course_students(
+        db,
+        {
+            "p_course": a["course_id"],
+            "p_type": "announcement",
+            "p_title": "New announcement: " + a["title"],
+            "p_message": a["body"][:200],
+            "p_link": "/student/courses/" + a["course_id"],
+        },
+    )
+
+
+def _rpc_create_announcement(db, p):
+    """Mirrors create_announcement(): row + audit + (when published) notifications, one transaction."""
+    if not _assigned(db, p["p_course"], p["p_actor"]):
+        raise Exception("author is not assigned to this course (23514)")
+    row = (
+        Query(db, "announcements")
+        .insert(
+            {
+                "course_id": p["p_course"],
+                "title": p["p_title"],
+                "body": p["p_body"],
+                "published": p["p_publish"],
+                "published_at": FAKE_NOW if p["p_publish"] else None,
+                "created_by": p["p_actor"],
+            }
+        )
+        .execute()
+        .data[0]
+    )
+    action = "announcement.publish" if p["p_publish"] else "announcement.create"
+    new = {"course_id": p["p_course"], "title": p["p_title"], "published": p["p_publish"]}
+    _audit(db, p["p_actor"], action, "announcement", row["id"], None, new)
+    n = _announcement_notice(db, row) if p["p_publish"] else 0
+    return {"announcement": row, "notified": n}
+
+
+def _rpc_update_announcement(db, p):
+    """Mirrors update_announcement(): changes + audit + first-publication notifications."""
+    row = next((a for a in db.tables.get("announcements", []) if a["id"] == p["p_id"]), None)
+    if row is None:
+        raise Exception("announcement not found (P0002)")
+    if not _assigned(db, row["course_id"], p["p_actor"]):
+        raise Exception("author is not assigned to this course (23514)")
+    old_v, new_v, action = {}, {}, "announcement.update"
+    for key in ("title", "body", "published"):
+        if key in p["p_changes"] and p["p_changes"][key] != row[key]:
+            old_v[key], new_v[key] = row[key], p["p_changes"][key]
+    if "published" in new_v:
+        action = "announcement.publish" if new_v["published"] else "announcement.unpublish"
+    if not new_v:
+        return {"announcement": dict(row), "notified": 0}
+    first_publish = new_v.get("published") is True and row["published_at"] is None
+    row.update(new_v)
+    row["updated_at"] = "2026-10-05T12:30:00+00:00"
+    if first_publish:
+        row["published_at"] = FAKE_NOW
+    _audit(db, p["p_actor"], action, "announcement", row["id"], old_v, new_v)
+    n = _announcement_notice(db, row) if first_publish else 0
+    return {"announcement": dict(row), "notified": n}
+
+
 RPC_HANDLERS = {
     "provision_profile": _rpc_provision_profile,
     "apply_grade": _rpc_apply_grade,
     "release_grades": _rpc_release_grades,
     "upsert_assessment_marks": _rpc_upsert_assessment_marks,
+    "upsert_attendance_records": _rpc_upsert_attendance_records,
+    "notify_course_students": _rpc_notify_course_students,
+    "create_announcement": _rpc_create_announcement,
+    "update_announcement": _rpc_update_announcement,
 }
 
 

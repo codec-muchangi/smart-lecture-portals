@@ -15,7 +15,7 @@ from app.repositories import assignment_repository
 from app.repositories import submission_repository as repo
 from app.schemas.common import CurrentUser
 from app.schemas.grading import GradeRequest
-from app.services import assignment_service
+from app.services import assignment_service, notification_service
 from app.services.marks_calc import d
 from app.services.submission_view import lecturer_view
 
@@ -132,10 +132,26 @@ def _grade(
         release=release,
         regrade=regrade,
     )
+    if release and not submission["grade_released"]:  # FR-NOT-03: the grade just became visible
+        _notify_grade_released([submission["student_id"]], assignment)
+
+
+def _notify_grade_released(student_ids: list[str], assignment: dict) -> None:
+    notification_service.notify_users(
+        student_ids,
+        "grade_released",
+        f"Grade released: {assignment['title']}",
+        "Your grade and feedback are now available.",
+        f"/student/assignments/{assignment['id']}",
+    )
 
 
 def release_all(user: CurrentUser, assignment_id: UUID, released: bool) -> dict:
     """Show (or hide) every graded submission of an assignment at once. Ungraded work is never touched."""
-    _, course = assignment_service.load_for_lecturer(user, assignment_id)
+    assignment, course = assignment_service.load_for_lecturer(user, assignment_id)
     ensure_course_writable(course)
-    return {"updated": repo.release_all(assignment_id, user.id, released)}
+    to_reveal = repo.unreleased_graded_student_ids(assignment_id) if released else []
+    updated = repo.release_all(assignment_id, user.id, released)
+    if updated:
+        _notify_grade_released(to_reveal, assignment)
+    return {"updated": updated}

@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Unread-Count"],  # lets the browser read the unread badge number
     )
     register_error_handlers(app)
     app.include_router(health_router)

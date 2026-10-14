@@ -217,6 +217,83 @@ def make_mark(db, assessment, student_id=None, mark=20, feedback=None) -> dict:
     return row
 
 
+def make_session(
+    db, course_id=None, on=None, start="09:00:00", end="11:00:00", topic="Introduction", creator=None
+) -> dict:
+    """Insert an attendance session straight into the fake. `on` is an ISO date (default: NOW - 2 days)."""
+    from uuid import uuid4
+
+    row = {
+        **db.defaults("attendance_sessions"),
+        "id": str(uuid4()),
+        "course_id": course_id or COURSE_A,
+        "session_date": on or (NOW - timedelta(days=2)).date().isoformat(),
+        "start_time": start,
+        "end_time": end,
+        "topic": topic,
+        "created_by": creator or L1,
+    }
+    db.tables.setdefault("attendance_sessions", []).append(row)
+    return row
+
+
+def make_record(db, session, student_id=None, status="present", note=None) -> dict:
+    """Insert a student's attendance record straight into the fake."""
+    records = db.tables.setdefault("attendance_records", [])
+    row = {
+        "id": f"a{len(records) + 1}",
+        "session_id": session["id"],
+        "student_id": student_id or S1,
+        "status": status,
+        "marked_at": "2026-10-03T10:00:00+00:00",
+        "marked_by": L1,
+        "note": note,
+    }
+    records.append(row)
+    return row
+
+
+def make_announcement(
+    db, course_id=None, title="Welcome", body="Welcome to the course.", published=True, creator=None
+) -> dict:
+    """Insert an announcement straight into the fake (no notifications)."""
+    from uuid import uuid4
+
+    row = {
+        **db.defaults("announcements"),
+        "id": str(uuid4()),
+        "course_id": course_id or COURSE_A,
+        "title": title,
+        "body": body,
+        "published": published,
+        "published_at": "2026-10-01T08:00:00+00:00" if published else None,
+        "created_by": creator or L1,
+    }
+    db.tables.setdefault("announcements", []).append(row)
+    return row
+
+
+def make_notification(db, user_id=None, title="Hello", is_read=False, type_="general", created=None) -> dict:
+    """Insert a notification straight into the fake. `created` is an ISO timestamp (ordering)."""
+    from uuid import uuid4
+
+    row = {
+        **db.defaults("notifications"),
+        "id": str(uuid4()),
+        "user_id": user_id or S1,
+        "type": type_,
+        "title": title,
+        "message": f"{title} message",
+        "link": None,
+        "is_read": is_read,
+        "read_at": "2026-10-02T09:00:00+00:00" if is_read else None,
+    }
+    if created:
+        row["created_at"] = created
+    db.tables.setdefault("notifications", []).append(row)
+    return row
+
+
 def assert_grading_invariants(db) -> None:
     """The same rule the database enforces with submissions_grading_consistency (migration 0007)."""
     for s in db.tables.get("submissions", []):
