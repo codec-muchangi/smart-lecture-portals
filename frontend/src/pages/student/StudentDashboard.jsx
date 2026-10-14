@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../app/AuthContext.jsx'
 import { api } from '../../services/apiClient.js'
+import SubmitModal from '../../components/SubmitModal.jsx'
+import { dueInfo, formatDue, formatSemester, sentenceCase, timeAgo, toList } from '../../utils/format.js'
 
 /*
  * Smart Lecture Portal: Student dashboard (page content)
@@ -43,10 +45,6 @@ const FEED_LIMIT = 5
 const TASK_ICONS = ['terminal', 'schema', 'shield_lock', 'science', 'functions', 'article']
 const FEED_DOTS = ['primary', 'tertiary', 'secondary']
 
-// Matches the backend upload rules (PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP; 25 MB).
-const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'pptx', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'zip']
-const MAX_UPLOAD_MB = 25
-
 // Same query keys as AppShell, so courses and notifications are fetched once and shared.
 const COURSES_KEY = ['courses', 'assigned']
 const SUMMARY_KEY = 'student-dashboard'
@@ -63,106 +61,6 @@ function renderIcon(name, size) {
       {name}
     </span>
   )
-}
-
-// The API may return a bare array or a paginated { items, total } object; accept both.
-function toList(data) {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.items)) return data.items
-  return []
-}
-
-// The database already stores "Semester 1"; only add the word when it is missing.
-function formatSemester(value) {
-  const text = String(value ?? '').trim()
-  if (!text) return ''
-  return /^semester/i.test(text) ? text : `Semester ${text}`
-}
-
-function sentenceCase(value) {
-  const text = String(value ?? '')
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''
-}
-
-// "14 mins ago", "1 hour ago", "Yesterday", then a plain date.
-function timeAgo(value, now) {
-  const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return ''
-  const minutes = Math.floor((now - date.getTime()) / 60000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
-  if (hours < 48) return 'Yesterday'
-  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-function clock(date) {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-}
-
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
-// "Tomorrow, 23:59", "Today, 09:00" or "Feb 27, 23:59".
-function formatDue(value, now) {
-  const due = new Date(value)
-  if (!value || Number.isNaN(due.getTime())) return ''
-  const today = new Date(now)
-  const tomorrow = new Date(now)
-  tomorrow.setDate(today.getDate() + 1)
-  let day = due.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  if (sameDay(due, today)) day = 'Today'
-  else if (sameDay(due, tomorrow)) day = 'Tomorrow'
-  return `${day}, ${clock(due)}`
-}
-
-// Urgency drives the label, the pill colour and the card's accent bar.
-function dueInfo(value, now) {
-  const due = new Date(value)
-  if (!value || Number.isNaN(due.getTime())) return { label: '', tone: 'later' }
-  const diff = due.getTime() - now
-  if (diff < 0) return { label: 'Overdue', tone: 'urgent' }
-  const minutes = Math.max(1, Math.ceil(diff / 60000))
-  if (minutes < 60) return { label: `Due in ${minutes} ${minutes === 1 ? 'min' : 'mins'}`, tone: 'urgent' }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 48) return { label: `Due in ${hours} ${hours === 1 ? 'hour' : 'hours'}`, tone: 'urgent' }
-  const days = Math.floor(diff / 86400000)
-  if (days < 7) return { label: `Due in ${days} days`, tone: 'soon' }
-  if (days < 14) return { label: 'Due Next Week', tone: 'later' }
-  return { label: `Due ${due.toLocaleDateString([], { month: 'short', day: 'numeric' })}`, tone: 'later' }
-}
-
-function remaining(value, now) {
-  const diff = new Date(value).getTime() - now
-  if (!Number.isFinite(diff)) return ''
-  if (diff <= 0) return 'Deadline passed'
-  const totalMinutes = Math.floor(diff / 60000)
-  const days = Math.floor(totalMinutes / 1440)
-  const hours = Math.floor((totalMinutes % 1440) / 60)
-  const minutes = totalMinutes % 60
-  if (days > 0) return `${days}d ${hours}h Remaining`
-  return `${hours}h ${minutes}m Remaining`
-}
-
-function extensionOf(name) {
-  const index = String(name ?? '').lastIndexOf('.')
-  return index < 0 ? '' : String(name).slice(index + 1).toLowerCase()
-}
-
-function validateFile(file) {
-  if (!ALLOWED_EXTENSIONS.includes(extensionOf(file.name))) {
-    return `Unsupported file type. Use ${ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(', ')}.`
-  }
-  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) return `File is larger than ${MAX_UPLOAD_MB} MB.`
-  if (file.size === 0) return 'That file is empty.'
-  return ''
-}
-
-function formatSize(bytes) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 /*
@@ -201,184 +99,9 @@ function Kpi({ icon, tone, pill, pillTone, children }) {
   )
 }
 
-function SubmitModal({ task, now, onClose }) {
-  const queryClient = useQueryClient()
-  const dialogRef = useRef(null)
-  const inputRef = useRef(null)
-  const [file, setFile] = useState(null)
-  const [pledge, setPledge] = useState(false)
-  const [fileError, setFileError] = useState('')
-  const [dragging, setDragging] = useState(false)
-
-  const mutation = useMutation({
-    mutationFn: (chosen) => {
-      const form = new FormData()
-      form.append('file', chosen)
-      return api(`/assignments/${task.id}/submissions`, { method: 'POST', form })
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [SUMMARY_KEY] })
-      onClose(true)
-    },
-  })
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    const previous = document.activeElement
-    dialog?.querySelector('button')?.focus()
-
-    const onKey = (event) => {
-      if (event.key === 'Escape') {
-        onClose(false)
-        return
-      }
-      if (event.key !== 'Tab' || !dialog) return
-      const focusable = Array.from(dialog.querySelectorAll('button:not([disabled]), input, [href]')).filter(
-        (el) => el.type !== 'file',
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      if (previous && typeof previous.focus === 'function') previous.focus()
-    }
-  }, [onClose])
-
-  const choose = (chosen) => {
-    if (!chosen) return
-    const problem = validateFile(chosen)
-    setFileError(problem)
-    setFile(problem ? null : chosen)
-  }
-
-  const onDrop = (event) => {
-    event.preventDefault()
-    setDragging(false)
-    choose(event.dataTransfer?.files?.[0])
-  }
-
-  const canSubmit = Boolean(file) && pledge && !mutation.isPending
-  const submitError = mutation.error?.message || (mutation.isError ? 'The upload failed. Please try again.' : '')
-
-  return (
-    <div className="slpt-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose(false)}>
-      <div
-        ref={dialogRef}
-        className="slpt-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="slpt-modal-title"
-      >
-        <div className="slpt-modal-head">
-          <div>
-            <p className="slpt-code">SUBMISSION PORTAL · {task.course_code}</p>
-            <h2 id="slpt-modal-title" className="slpt-modal-title">
-              {task.title}
-            </h2>
-          </div>
-          <button type="button" className="slpt-icon-btn" aria-label="Close" onClick={() => onClose(false)}>
-            {renderIcon('close', 20)}
-          </button>
-        </div>
-
-        <div className="slpt-modal-due">
-          <span className="slpt-inline">
-            {renderIcon('schedule', 16)}
-            Due: {formatDue(task.due_at, now)}
-          </span>
-          <span className="slpt-code slpt-error-text">{remaining(task.due_at, now)}</span>
-        </div>
-
-        <div
-          className={`slpt-drop ${dragging ? 'is-drag' : ''}`}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-        >
-          <span className="slpt-drop-icon">{renderIcon('upload_file', 32)}</span>
-          {file ? (
-            <p className="slpt-drop-title" data-testid="chosen-file">
-              {file.name} <span className="slpt-muted">({formatSize(file.size)})</span>
-            </p>
-          ) : (
-            <p className="slpt-drop-title">Drag and drop your file here</p>
-          )}
-          <p className="slpt-muted">
-            Supported formats: {ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(', ')} (Maximum {MAX_UPLOAD_MB}MB)
-          </p>
-          <button type="button" className="slpt-btn slpt-btn-soft" onClick={() => inputRef.current?.click()}>
-            Select File from Device
-          </button>
-          <input
-            ref={inputRef}
-            type="file"
-            className="slpt-file"
-            aria-label="Choose a file to submit"
-            accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',')}
-            onChange={(event) => {
-              choose(event.target.files?.[0])
-              event.target.value = ''
-            }}
-          />
-        </div>
-        {fileError && (
-          <p className="slpt-alert" role="alert">
-            {fileError}
-          </p>
-        )}
-
-        <div className="slpt-pledge">
-          <input
-            id="slpt-pledge"
-            type="checkbox"
-            checked={pledge}
-            onChange={(event) => setPledge(event.target.checked)}
-          />
-          <label htmlFor="slpt-pledge">
-            I confirm that this submission is my own original work and complies with university academic
-            integrity and plagiarism regulations.
-          </label>
-        </div>
-
-        {submitError && (
-          <p className="slpt-alert" role="alert">
-            {submitError}
-          </p>
-        )}
-
-        <div className="slpt-modal-actions">
-          <button type="button" className="slpt-btn slpt-btn-plain" onClick={() => onClose(false)}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="slpt-btn slpt-btn-primary"
-            disabled={!canSubmit}
-            onClick={() => mutation.mutate(file)}
-          >
-            {mutation.isPending ? 'Submitting...' : 'Confirm & Submit'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function StudentDashboard() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [now, setNow] = useState(() => Date.now())
   const [activeTask, setActiveTask] = useState(null)
   const [notice, setNotice] = useState('')
@@ -781,7 +504,14 @@ function StudentDashboard() {
         </aside>
       </div>
 
-      {activeTask && <SubmitModal task={activeTask} now={now} onClose={closeModal} />}
+      {activeTask && (
+        <SubmitModal
+          task={activeTask}
+          now={now}
+          onClose={closeModal}
+          onSubmitted={() => queryClient.invalidateQueries({ queryKey: [SUMMARY_KEY] })}
+        />
+      )}
     </div>
   )
 }
@@ -1003,42 +733,6 @@ const STYLES = `
 .slpt-dot.is-secondary { background: var(--secondary); }
 .slpt-feed-title { font-size: 13px; line-height: 18px; font-weight: 500; }
 .slpt-feed-time { font-size: 11px; line-height: 14px; color: var(--outline); }
-
-/* Submission modal */
-.slpt-overlay {
-  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
-  padding: 1rem; background: rgba(51, 47, 56, 0.4); backdrop-filter: blur(4px);
-}
-.slpt-modal {
-  width: 100%; max-width: 576px; max-height: calc(100vh - 2rem); overflow-y: auto; border-radius: 16px;
-  background: var(--surface-lowest); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;
-  box-shadow: 0 24px 48px rgba(30, 26, 35, 0.25);
-}
-.slpt-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
-.slpt-code { font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11px; line-height: 14px; font-weight: 700; color: var(--primary); }
-.slpt-modal-title { margin-top: 2px; font-size: 20px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; }
-.slpt-modal-due {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;
-  padding: 0.5rem 0.75rem; border-radius: 12px; background: var(--surface-low); font-size: 13px; color: var(--on-surface-variant);
-}
-.slpt-modal-due .material-symbols-outlined { color: var(--primary); }
-.slpt-drop {
-  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; padding: 2rem 1rem;
-  border-radius: 16px; background: var(--surface-lowest); box-shadow: inset 0 0 0 2px var(--surface-high);
-  transition: background 0.2s;
-}
-.slpt-drop.is-drag { background: var(--surface-low); box-shadow: inset 0 0 0 2px var(--primary-container); }
-.slpt-drop-icon {
-  width: 56px; height: 56px; border-radius: 16px; background: var(--primary-fixed); color: var(--primary);
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.slpt-drop-title { font-size: 16px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
-.slpt-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.slpt-alert { padding: 0.5rem 0.75rem; border-radius: 12px; background: var(--error-container); color: var(--on-error-container); font-size: 13px; line-height: 18px; font-weight: 600; }
-.slpt-pledge { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; border-radius: 12px; background: var(--surface-low); }
-.slpt-pledge input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--primary); flex: 0 0 auto; }
-.slpt-pledge label { font-size: 13px; line-height: 18px; color: var(--on-surface-variant); cursor: pointer; }
-.slpt-modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; padding-top: 0.5rem; }
 
 @media (min-width: 640px) {
   .slpt-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
