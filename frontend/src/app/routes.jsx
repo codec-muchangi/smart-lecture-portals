@@ -7,6 +7,8 @@ import Login from '../pages/auth/Login.jsx'
 import NotFound from '../pages/NotFound.jsx'
 import Placeholder from '../pages/Placeholder.jsx'
 import LecturerDashboard from '../pages/lecturer/LecturerDashboard.jsx'
+import StudentDashboard from '../pages/student/StudentDashboard.jsx'
+import StudentCourses from '../pages/student/StudentCourses.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -33,11 +35,14 @@ function Home() {
   return user ? <Navigate to={`/${user.role}`} replace /> : <Landing />
 }
 
+const DASHBOARDS = { lecturer: <LecturerDashboard />, student: <StudentDashboard /> }
+const PAGES = { 'student:courses': <StudentCourses />, 'student:courses/:courseId': <StudentCourses /> }
+
 const roleRoutes = (role, list) => (
   <Route element={<RequireRole role={role} />}>
     <Route path={`/${role}`} element={<AppShell role={role} />}>
       {list.map(([path, title, phase]) => (
-        path === '' ? <Route key="index" index element={role === 'lecturer' ? <LecturerDashboard /> : P(title, phase)} /> : <Route key={path} path={path} element={P(title, phase)} /> 
+        path === '' ? <Route key="index" index element={DASHBOARDS[role] ?? P(title, phase)} /> : <Route key={path} path={path} element={PAGES[`${role}:${path}`] ?? P(title, phase)} />
       ))}
     </Route>
   </Route>
