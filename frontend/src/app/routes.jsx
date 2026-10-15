@@ -10,6 +10,7 @@ import LecturerDashboard from '../pages/lecturer/LecturerDashboard.jsx'
 import StudentDashboard from '../pages/student/StudentDashboard.jsx'
 import StudentCourses from '../pages/student/StudentCourses.jsx'
 import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
+import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -24,7 +25,8 @@ const STUDENT_ROUTES = [
 const LECTURER_ROUTES = [
   ['', 'Lecturer Dashboard', 'Phase 8'], ['courses', 'My Courses', 'Phase 2'],
   ['courses/:courseId', 'Course Details', 'Phase 2'], ['courses/:courseId/students', 'Students', 'Phase 2'],
-  ['courses/:courseId/materials', 'Materials Management', 'Phase 3'], ['courses/:courseId/assignments', 'Assignment Management', 'Phase 4'],
+  ['materials', 'Materials Management', 'Phase 3'], ['courses/:courseId/materials', 'Materials Management', 'Phase 3'],
+  ['courses/:courseId/assignments', 'Assignment Management', 'Phase 4'],
   ['assignments/:assignmentId/submissions', 'Submission Review', 'Phase 4'], ['courses/:courseId/attendance', 'Attendance Management', 'Phase 6'],
   ['courses/:courseId/marks', 'Marks Management', 'Phase 5'], ['courses/:courseId/announcements', 'Announcements', 'Phase 7'],
   ['courses/:courseId/reports', 'Reports', 'Phase 8'], ['notifications', 'Notifications', 'Phase 7'],
@@ -42,6 +44,8 @@ const PAGES = {
   'student:courses/:courseId': <StudentCourses />,
   'lecturer:courses': <LecturerCourses />,
   'lecturer:courses/:courseId': <LecturerCourses />,
+  'lecturer:materials': <LecturerMaterials />,
+  'lecturer:courses/:courseId/materials': <LecturerMaterials />,
 }
 
 const roleRoutes = (role, list) => (
