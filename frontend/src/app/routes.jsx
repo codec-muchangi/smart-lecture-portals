@@ -9,6 +9,7 @@ import Placeholder from '../pages/Placeholder.jsx'
 import LecturerDashboard from '../pages/lecturer/LecturerDashboard.jsx'
 import StudentDashboard from '../pages/student/StudentDashboard.jsx'
 import StudentCourses from '../pages/student/StudentCourses.jsx'
+import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -36,7 +37,12 @@ function Home() {
 }
 
 const DASHBOARDS = { lecturer: <LecturerDashboard />, student: <StudentDashboard /> }
-const PAGES = { 'student:courses': <StudentCourses />, 'student:courses/:courseId': <StudentCourses /> }
+const PAGES = {
+  'student:courses': <StudentCourses />,
+  'student:courses/:courseId': <StudentCourses />,
+  'lecturer:courses': <LecturerCourses />,
+  'lecturer:courses/:courseId': <LecturerCourses />,
+}
 
 const roleRoutes = (role, list) => (
   <Route element={<RequireRole role={role} />}>
