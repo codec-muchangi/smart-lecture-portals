@@ -62,6 +62,7 @@ test('lecturer shell shows the sidebar, breadcrumb, identity and term chip', asy
   const nav = screen.getByRole('navigation', { name: 'Main' })
   expect(nav).toHaveTextContent('Dashboard')
   expect(nav).toHaveTextContent('Materials Management')
+  expect(screen.getByRole('link', { name: 'Materials Management' })).toHaveAttribute('href', '/lecturer/materials')
   expect(nav).toHaveTextContent('Academic Reports')
   expect(screen.getByText('page body')).toBeInTheDocument()
   expect(screen.getByText('Dr. Demo Lecturer')).toBeInTheDocument()
