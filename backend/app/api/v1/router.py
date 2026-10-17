@@ -6,10 +6,12 @@ from app.api.v1.routes import (
     attendance,
     auth,
     courses,
+    dashboard,
     marks,
     materials,
     me,
     notifications,
+    reports,
 )
 
 api_router = APIRouter()
@@ -28,4 +30,5 @@ api_router.include_router(attendance.session_router)
 api_router.include_router(announcements.course_router)
 api_router.include_router(announcements.announcement_router)
 api_router.include_router(notifications.router)
-# Later phases register routers here as they land (timetable, reports, dashboard). See docs/API.md.
+api_router.include_router(reports.router)
+api_router.include_router(dashboard.router)

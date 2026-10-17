@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.db.client import get_supabase
 from app.utils.batching import chunked
+from app.utils.paging import fetch_all
 
 COLS = "id,course_id,name,type,max_marks,weight,published,created_by,created_at,updated_at"
 MARK_COLS = "assessment_id,student_id,mark,feedback,entered_by,entered_at,updated_at"
@@ -105,20 +106,17 @@ def marks_for_student(student_id: UUID | str, assessment_ids: list[str]) -> dict
 
 def mark_counts(assessment_ids: list[str]) -> dict[str, int]:
     """How many marks each assessment has (for the lecturer's list)."""
-    if not assessment_ids:
-        return {}
-    rows = (
-        get_supabase()
-        .table("assessment_marks")
-        .select("assessment_id")
-        .in_("assessment_id", assessment_ids)
-        .limit(100000)
-        .execute()
-        .data
-    )
     counts: dict[str, int] = {}
-    for r in rows:
-        counts[r["assessment_id"]] = counts.get(r["assessment_id"], 0) + 1
+    for batch in chunked(assessment_ids):
+        rows = fetch_all(
+            lambda batch=batch: get_supabase()
+            .table("assessment_marks")
+            .select("assessment_id")
+            .in_("assessment_id", list(batch))
+            .order("id")
+        )
+        for r in rows:
+            counts[r["assessment_id"]] = counts.get(r["assessment_id"], 0) + 1
     return counts
 
 

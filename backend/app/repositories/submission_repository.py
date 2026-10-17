@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from app.db.client import get_supabase
+from app.utils.paging import fetch_all
 
 COLS = (
     "id,assignment_id,student_id,storage_path,file_name,file_size,submitted_at,status,mark,feedback,"
@@ -137,15 +138,13 @@ def apply_grade(
 
 def unreleased_graded_student_ids(assignment_id: UUID | str) -> list[str]:
     """Students with a graded submission whose grade is not yet released (who a bulk release will reveal)."""
-    rows = (
-        _table()
+    rows = fetch_all(
+        lambda: _table()
         .select("student_id")
         .eq("assignment_id", str(assignment_id))
         .eq("status", "graded")
         .is_("grade_released", "false")
-        .limit(100000)
-        .execute()
-        .data
+        .order("id")
     )
     return [r["student_id"] for r in rows]
 

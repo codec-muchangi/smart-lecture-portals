@@ -2,10 +2,10 @@ from uuid import UUID
 
 from app.db.client import get_supabase
 from app.utils.batching import chunked
+from app.utils.paging import fetch_all
 
 SESSION_COLS = "id,course_id,session_date,start_time,end_time,topic,created_by,created_at"
 RECORD_COLS = "id,session_id,student_id,status,marked_at,marked_by,note"
-MAX_ROWS = 100000  # a session has a class-worth of records; a course a semester-worth of sessions
 
 
 def _sessions():
@@ -56,21 +56,19 @@ def list_sessions(course_id: UUID | str, *, page: int, page_size: int) -> tuple[
 
 
 def all_sessions(course_id: UUID | str) -> list[dict]:
-    return (
-        _sessions()
+    return fetch_all(
+        lambda: _sessions()
         .select(SESSION_COLS)
         .eq("course_id", str(course_id))
         .order("session_date", desc=True)
         .order("start_time", desc=True)
-        .limit(MAX_ROWS)
-        .execute()
-        .data
+        .order("id")
     )
 
 
 # ---------- records ----------
 def records_for_session(session_id: UUID | str) -> list[dict]:
-    return _records().select(RECORD_COLS).eq("session_id", str(session_id)).limit(MAX_ROWS).execute().data
+    return fetch_all(lambda: _records().select(RECORD_COLS).eq("session_id", str(session_id)).order("id"))
 
 
 def records_for_students(session_id: UUID | str, student_ids: list[str]) -> dict[str, dict]:
@@ -108,22 +106,22 @@ def record_counts(session_ids: list[str]) -> dict[str, int]:
     """How many records each session has (for the lecturer's list)."""
     counts: dict[str, int] = {}
     for batch in chunked(session_ids):
-        rows = _records().select("session_id").in_("session_id", list(batch)).limit(MAX_ROWS).execute().data
+        rows = fetch_all(
+            lambda batch=batch: _records().select("session_id").in_("session_id", list(batch)).order("id")
+        )
         for r in rows:
             counts[r["session_id"]] = counts.get(r["session_id"], 0) + 1
     return counts
 
 
 def active_student_ids(course_id: UUID | str) -> set[str]:
-    rows = (
-        get_supabase()
+    rows = fetch_all(
+        lambda: get_supabase()
         .table("course_enrollments")
         .select("student_id")
         .eq("course_id", str(course_id))
         .eq("status", "active")
-        .limit(MAX_ROWS)
-        .execute()
-        .data
+        .order("id")
     )
     return {r["student_id"] for r in rows}
 
