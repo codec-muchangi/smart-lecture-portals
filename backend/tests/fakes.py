@@ -91,6 +91,14 @@ class Query:
     def not_(self):
         return _Negated(self)
 
+    def gte(self, col, val):
+        self.filters.append(lambda r: r.get(col) is not None and str(r.get(col)) >= str(val))
+        return self
+
+    def lte(self, col, val):
+        self.filters.append(lambda r: r.get(col) is not None and str(r.get(col)) <= str(val))
+        return self
+
     def neq(self, col, val):
         self.filters.append(lambda r: str(r.get(col)) != str(val))
         return self
@@ -143,6 +151,7 @@ class Query:
         return [r for r in self.db.rows_for(self.table) if all(f(r) for f in self.filters)]
 
     def execute(self):
+        self.db.query_count += 1
         rows = self.db.tables.setdefault(self.table, [])
         if self._op == "insert":
             if self.table in self.db.fail_insert_tables:
@@ -179,6 +188,7 @@ class Query:
             data = data[self._range[0] : self._range[1] + 1]
         if self._limit is not None:
             data = data[: self._limit]
+        data = data[: self.db.max_rows]  # PostgREST never returns more than its max-rows setting
         if self._single:
             if not data:
                 raise Exception("No rows found")
@@ -547,6 +557,7 @@ class Rpc:
         self.db, self.name, self.params = db, name, params
 
     def execute(self):
+        self.db.query_count += 1
         snapshot = copy.deepcopy(self.db.tables)
         try:
             result = RPC_HANDLERS[self.name](self.db, self.params)
@@ -605,6 +616,8 @@ class FakeSupabase:
         self.fail_insert_tables: set[str] = set()
         self.fail_update_tables: set[str] = set()
         self.fail_rpc_after: set[str] = set()
+        self.max_rows = 1000  # Supabase's default API row cap
+        self.query_count = 0  # every table query and rpc, for the "no N+1" performance smoke tests
         self._clock = 0
 
     def defaults(self, table):

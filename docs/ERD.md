@@ -127,5 +127,11 @@ erDiagram
 - **`notifications_read_consistency`** (CHECK): `is_read` is true exactly when `read_at` is set. **`trg_notifications_guard`**: a notification's owner, type, title, message, link and creation time never change, and a read notification never becomes unread. (Notifications stay the one table that cascades with its user, ERD note on transient data.)
 - **Transactional functions** (service role only): `notify_course_students` (one notification per actively enrolled student, returns the count), `create_announcement` and `update_announcement` (the change, its audit row and, on the first publication, the students' notifications, all in one transaction).
 - Decisions: students are notified only the first time an announcement is published; the other event notifications (assignment, material, marks, grade) are created by the backend right after the change and are best effort; notification `link` values are front-end routes (`docs/FRONTEND.md`).
-- `scripts/verify_database.py` now applies nine migrations, loads the demo seed on top and runs 163 checks.
+- `scripts/verify_database.py` now applies nine migrations, loads the demo seed on top and runs 174 checks.
 
+## Migration 0010 (Phase 8) — timetable integrity & reporting indexes
+- **`timetable_weekly_or_one_off`** (CHECK): an entry is either weekly (`day_of_week`) or one-off (`specific_date`), never both and never neither. **`timetable_recurrence_shape`** (CHECK): `recurrence` is null or a JSON object that carries `day_of_week`.
+- **`trg_timetable_recurrence`** (trigger `timetable_recurrence`): `recurrence.from` / `recurrence.until` must be ISO dates and `until` cannot precede `from`.
+- Indexes: `timetable_course_day_idx (course_id, day_of_week)` and `course_enrollments_active_idx (course_id) where status = 'active'` (roster and dashboard reads).
+- No existing row is changed and no new table is created: dashboards and reports are computed from the existing records on every request, nothing is stored or hard-coded.
+- `scripts/verify_database.py` now runs 174 checks.

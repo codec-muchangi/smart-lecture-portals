@@ -144,23 +144,44 @@ Every user (student or lecturer) has their own inbox. No user id is ever accepte
 | PATCH | `/notifications/{id}/read` | A | Marks one as read (FR-NOT-04); already-read keeps its original `read_at`. 404 if it is not yours |
 | POST | `/notifications/read-all` | A | Marks all of the caller's unread notifications; returns `{updated: n}` |
 
-## Timetable
+## Timetable — implemented in Phase 8
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/timetable` | A | Authorised courses only; `from`, `to` |
-| POST | `/courses/{course_id}/timetable` | L | *Pending decision* (Pre-Coding Checklist: seeded vs lecturer-entered). Implement only after decision |
+| GET | `/timetable` | A | Classes of the caller's own **active** courses (student: enrolled; lecturer: assigned). Query `from`, `to` (ISO dates). |
 
-## Dashboards & reports
+- Default window: today (UTC) to today + 6 days. Only `from` → 7 days from it; only `to` → the 7 days ending on it. `to` before `from` → **400**; more than 93 days → **400**; a malformed date → **422**.
+- Response: `{date_from, date_to, items: [{entry_id, course_id, course_code, course_name, date, day_of_week (1=Mon..7=Sun), start_time, end_time, room, notes, recurring}]}`, sorted by date then start time.
+- A stored weekly entry (optionally limited by `recurrence.from` / `recurrence.until`) is expanded into one item per matching date; a one-off entry (`specific_date`) appears once.
+- The timetable is **read-only**: it is seeded or loaded by the institution (SRS §22 leaves lecturer entry open), so there is no `POST` route.
+
+## Dashboards — implemented in Phase 8
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/dashboard` | A | Role-specific aggregate (see below) |
-| GET | `/courses/{course_id}/reports/attendance` | L | Per-student %, per-session counts; `student_id` filter |
-| GET | `/courses/{course_id}/reports/performance` | L | Per-assessment stats, per-student weighted totals |
-| GET | `/courses/{course_id}/reports/submissions` | L | Per-assignment submitted/late/graded/missing counts |
+| GET | `/dashboard` | A | Role-specific overview of the caller's **active** courses (archived/inactive are hidden). Computed from live records on every call. |
 
-`/dashboard` (student): `{courses, upcoming_assignments, attendance_summary, recent_marks, announcements, unread_notifications}`.
-`/dashboard` (lecturer): `{courses, pending_grading, upcoming_deadlines, attendance_summary, performance_summary}`.
-*Note:* `/dashboard` and the three-way reports split are the only additions beyond the SRS §10 table (needed by FR-STU-01, FR-LEC-01, FR-REP-02).
+`/dashboard` (student, `role: "student"`):
+- `courses`; `upcoming_assignments` (published, not closed, deadline ahead, soonest first, max 10, each with the student's own `submission_status`: `not_submitted|submitted|late|graded|returned`);
+- `attendance_summary` (one row per course, same policy as `/courses/{id}/attendance/me`); `recent_marks` (max 5, newest first, **released** assignment grades and **published** assessment marks only);
+- `announcements` (latest 5 published, 200-character `preview`); `unread_notifications`.
+
+`/dashboard` (lecturer, `role: "lecturer"`):
+- `courses` (with `enrolled_count`); `pending_grading` `{total, items}` (submitted or late work from actively enrolled students; max 10 items); `upcoming_deadlines` (max 10, with `enrolled` and `submitted`);
+- `attendance_summary` (sessions, `last_session_date`, pooled `attendance_pct`); `performance_summary` (published assessments, `students_without_marks`, `average_weighted_percent`).
+
+The number of database queries is fixed (lists are fetched in bulk), so the dashboard does not slow down as classes grow (NFR-PERF-01).
+
+## Reports — implemented in Phase 8
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/courses/{course_id}/reports/attendance` | L | `student_id`, `from`, `to` filters. `{summary, students[], sessions[]}` |
+| GET | `/courses/{course_id}/reports/submissions` | L | `student_id`, `assignment_id` filters. `{summary, assignments[]}` |
+| GET | `/courses/{course_id}/reports/performance` | L | `student_id` filter. `{summary, assessments[], students[]}` |
+
+- Lecturer assigned to the course only: a student gets **403**, a lecturer of another course **404**. Archived courses stay readable.
+- Reports cover the **actively enrolled** students. `student_id` of someone not in the class (or unknown) → **404**; `to` before `from` → **400**.
+- Totals reconcile with the source records (AT-20): per-student and per-session counts add up to the summary; `submitted + late + graded + returned + not_submitted = assignments x students`.
+- Attendance percentage = (present + late) / (present + late + absent), excused excluded, 2 decimals; `unmarked` counts students with no record for a session. Submissions: `missing` = not submitted after the deadline. Performance: per-student totals use **published** assessments only; `marks_entered` counts the marks recorded.
+- Lists are complete (not paginated): they are class-sized.
 
 ## Authorization rules (centralised in `app/core/permissions.py`)
 1. `get_current_user` verifies the token with Supabase, loads `profiles` row; user IDs are **never** taken from the client body.

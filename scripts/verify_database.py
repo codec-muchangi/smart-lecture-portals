@@ -251,5 +251,17 @@ if seed.returncode != 0:
 check("seed: three sample lecture sessions", "select count(*) from attendance_sessions where topic like 'Lecture %';", "3")
 check("seed: demo student attendance is 66.67% (present + late of 3)", f"select attendance_pct from v_student_attendance_summary where student_id='{SEED_S}';", "66.67")
 
+print("== Phase 8: timetable rules and reporting indexes (migration 0010) ==")
+check("seed: weekly timetable entry present", "select count(*) from timetable_entries where day_of_week=1 and specific_date is null;", "1")
+ok("a weekly entry is accepted", f"insert into timetable_entries (course_id, day_of_week, start_time, end_time, room, recurrence) select course_id, 3, '08:00', '09:00', 'R1', '{{\"day_of_week\":3,\"from\":\"2026-09-01\",\"until\":\"2026-12-01\"}}'::jsonb from timetable_entries limit 1;")
+ok("a one-off entry is accepted", "insert into timetable_entries (course_id, specific_date, start_time, end_time, room) select course_id, '2026-10-08', '14:00', '16:00', 'R2' from timetable_entries limit 1;")
+bad("an entry cannot be both weekly and one-off", "insert into timetable_entries (course_id, day_of_week, specific_date, start_time, end_time) select course_id, 2, '2026-10-08', '08:00', '09:00' from timetable_entries limit 1;", "timetable_weekly_or_one_off")
+bad("an entry needs a day or a date", "insert into timetable_entries (course_id, start_time, end_time) select course_id, '08:00', '09:00' from timetable_entries limit 1;", "violates check constraint")
+bad("recurrence must be a JSON object", "insert into timetable_entries (course_id, day_of_week, start_time, end_time, recurrence) select course_id, 2, '08:00', '09:00', '[1]'::jsonb from timetable_entries limit 1;", "timetable_recurrence_shape")
+bad("recurrence dates must be ISO dates", "insert into timetable_entries (course_id, day_of_week, start_time, end_time, recurrence) select course_id, 2, '08:00', '09:00', '{\"day_of_week\":2,\"from\":\"soon\"}'::jsonb from timetable_entries limit 1;", "")
+bad("recurrence 'until' cannot precede 'from'", "insert into timetable_entries (course_id, day_of_week, start_time, end_time, recurrence) select course_id, 2, '08:00', '09:00', '{\"day_of_week\":2,\"from\":\"2026-12-01\",\"until\":\"2026-09-01\"}'::jsonb from timetable_entries limit 1;", "")
+check("timetable day index exists", "select count(*) from pg_indexes where indexname='timetable_course_day_idx';", "1")
+check("active-enrolment index exists", "select count(*) from pg_indexes where indexname='course_enrollments_active_idx';", "1")
+
 print("\nFAILED:" if fails else "\nALL REAL-DATABASE CHECKS PASSED", fails if fails else "")
 sys.exit(1 if fails else 0)

@@ -294,6 +294,35 @@ def make_notification(db, user_id=None, title="Hello", is_read=False, type_="gen
     return row
 
 
+def make_timetable_entry(
+    db,
+    course_id=None,
+    day=1,
+    on=None,
+    start="08:00:00",
+    end="10:00:00",
+    room="Lab 2",
+    notes=None,
+    recurrence=None,
+) -> dict:
+    """Insert a timetable entry: weekly (`day` 1=Mon..7=Sun) or, when `on` (ISO date) is given, one-off."""
+    from uuid import uuid4
+
+    row = {
+        "id": str(uuid4()),
+        "course_id": course_id or COURSE_A,
+        "day_of_week": None if on else day,
+        "specific_date": on,
+        "start_time": start,
+        "end_time": end,
+        "room": room,
+        "notes": notes,
+        "recurrence": recurrence,
+    }
+    db.tables.setdefault("timetable_entries", []).append(row)
+    return row
+
+
 def assert_grading_invariants(db) -> None:
     """The same rule the database enforces with submissions_grading_consistency (migration 0007)."""
     for s in db.tables.get("submissions", []):

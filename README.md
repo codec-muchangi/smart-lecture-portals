@@ -63,6 +63,9 @@ Lecturers create lecture sessions and mark their actively enrolled students (pre
 ## Announcements and notifications
 Lecturers publish course announcements; students enrolled in the course see only the published ones. Students get in-app notifications for new announcements, assignments and materials and for released marks and grades, and mark them read. See `docs/PHASE7_BACKEND.md` for the rules, the setup steps and the live-check list.
 
+## Dashboards and reports
+Students and lecturers get a role-specific dashboard (`GET /dashboard`) and a read-only timetable (`GET /timetable`); lecturers get attendance, submission and performance reports per course. Everything is computed from live records and limited to what the caller may see. See `docs/PHASE8_BACKEND.md` for the rules, the setup steps and the live-check list.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py
