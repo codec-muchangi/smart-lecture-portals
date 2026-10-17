@@ -13,6 +13,7 @@ import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
 import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
+import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -52,6 +53,7 @@ const PAGES = {
   'lecturer:courses/:courseId/materials': <LecturerMaterials />,
   'lecturer:marks': <LecturerMarks />,
   'lecturer:courses/:courseId/marks': <LecturerMarks />,
+  'lecturer:timetable': <LecturerTimetable />,
   'lecturer:announcements': <LecturerAnnouncements />,
   'lecturer:courses/:courseId/announcements': <LecturerAnnouncements />,
 }
