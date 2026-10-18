@@ -53,7 +53,7 @@ const NAV = {
     { label: 'Dashboard', icon: 'grid_view', to: '', end: true },
     { label: 'My Enrolled Courses', icon: 'menu_book', to: 'courses' },
     { label: 'Materials Hub', icon: 'folder_shared', course: true },
-    { label: 'Assignments & Submissions', icon: 'assignment', course: true },
+    { label: 'Assignments & Submissions', icon: 'assignment', to: 'assignments' },
     { label: 'Attendance Tracker', icon: 'fact_check', to: 'attendance' },
     { label: 'Marks & Results', icon: 'analytics', to: 'marks' },
     { label: 'Announcements', icon: 'campaign', to: 'announcements' },
