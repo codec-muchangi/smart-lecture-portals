@@ -46,7 +46,7 @@ const NAV = {
     { label: 'Marks & Assessment', icon: 'grade', to: 'marks' },
     { label: 'Announcements', icon: 'campaign', to: 'announcements' },
     { label: 'Timetable & Schedule', icon: 'calendar_today', to: 'timetable' },
-    { label: 'Academic Reports', icon: 'analytics', course: true },
+    { label: 'Academic Reports', icon: 'analytics', to: 'reports' },
     { label: 'Settings', icon: 'settings', to: 'settings' },
   ],
   student: [
@@ -69,6 +69,7 @@ const PAGE_TITLES = {
   assignments: 'Assignments',
   attendance: 'Attendance',
   marks: 'Marks',
+  reports: 'Reports',
   announcements: 'Announcements',
   notifications: 'Notifications',
   timetable: 'Timetable',

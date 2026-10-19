@@ -65,6 +65,7 @@ test('lecturer shell shows the sidebar, breadcrumb, identity and term chip', asy
   expect(screen.getByRole('link', { name: 'Materials Management' })).toHaveAttribute('href', '/lecturer/materials')
   expect(nav).toHaveTextContent('Academic Reports')
   expect(screen.getByRole('link', { name: 'Attendance Tracker' })).toHaveAttribute('href', '/lecturer/attendance')
+  expect(screen.getByRole('link', { name: 'Academic Reports' })).toHaveAttribute('href', '/lecturer/reports')
   expect(screen.getByText('page body')).toBeInTheDocument()
   expect(screen.getByText('Dr. Demo Lecturer')).toBeInTheDocument()
   expect(screen.getByText('Dept. of Computer Science #LEC001')).toBeInTheDocument()

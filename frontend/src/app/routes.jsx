@@ -15,6 +15,7 @@ import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
 import LecturerAttendance from '../pages/lecturer/LecturerAttendance.jsx'
+import LecturerReports from '../pages/lecturer/LecturerReports.jsx'
 import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
 import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
 
@@ -37,7 +38,7 @@ const LECTURER_ROUTES = [
   ['marks', 'Marks & Assessment', 'Phase 5'], ['courses/:courseId/marks', 'Marks Management', 'Phase 5'],
   ['announcements', 'Announcements', 'Phase 7'],
   ['courses/:courseId/announcements', 'Announcements', 'Phase 7'],
-  ['courses/:courseId/reports', 'Reports', 'Phase 8'], ['notifications', 'Notifications', 'Phase 7'],
+  ['reports', 'Reports', 'Phase 8'], ['courses/:courseId/reports', 'Reports', 'Phase 8'], ['notifications', 'Notifications', 'Phase 7'],
   ['timetable', 'Timetable', 'Phase 8'], ['profile', 'Profile', 'Phase 1'], ['settings', 'Settings', 'Phase 1'],
 ]
 
@@ -61,6 +62,8 @@ const PAGES = {
   'lecturer:courses/:courseId/materials': <LecturerMaterials />,
   'lecturer:attendance': <LecturerAttendance />,
   'lecturer:courses/:courseId/attendance': <LecturerAttendance />,
+  'lecturer:reports': <LecturerReports />,
+  'lecturer:courses/:courseId/reports': <LecturerReports />,
   'lecturer:marks': <LecturerMarks />,
   'lecturer:courses/:courseId/marks': <LecturerMarks />,
   'lecturer:timetable': <LecturerTimetable />,
