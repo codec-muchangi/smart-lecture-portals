@@ -15,6 +15,7 @@ import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
 import LecturerAttendance from '../pages/lecturer/LecturerAttendance.jsx'
+import LecturerSettings from '../pages/lecturer/LecturerSettings.jsx'
 import LecturerReports from '../pages/lecturer/LecturerReports.jsx'
 import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
 import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
@@ -62,6 +63,8 @@ const PAGES = {
   'lecturer:courses/:courseId/materials': <LecturerMaterials />,
   'lecturer:attendance': <LecturerAttendance />,
   'lecturer:courses/:courseId/attendance': <LecturerAttendance />,
+  'lecturer:settings': <LecturerSettings />,
+  'lecturer:profile': <LecturerSettings />,
   'lecturer:reports': <LecturerReports />,
   'lecturer:courses/:courseId/reports': <LecturerReports />,
   'lecturer:marks': <LecturerMarks />,

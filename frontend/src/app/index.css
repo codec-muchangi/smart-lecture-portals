@@ -9,3 +9,8 @@ a { color: var(--accent); }
 .shell main { padding:1.5rem; }
 .card { background:var(--card); border-radius:8px; padding:1rem; }
 @media (max-width: 768px) { .shell { grid-template-columns: 1fr; } .shell nav { flex-direction:row; flex-wrap:wrap; } }
+
+/* Display preferences chosen on the Settings page (see utils/display.js) */
+html[data-reduce-motion='true'] *, html[data-reduce-motion='true'] *::before, html[data-reduce-motion='true'] *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+html[data-contrast='high'] .slpc, html[data-contrast='high'] .slps { --on-surface-variant: #1e1a23; --outline: #4d3f3b; --surface-high: #e2d6dc; --surface-mid: #d8cbd2; }
+html[data-contrast='high'] :focus-visible { outline-width: 4px; }
