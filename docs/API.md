@@ -9,7 +9,7 @@ Interactive docs: FastAPI `/docs` (OpenAPI). This file is the contract baseline 
 - **Errors:** `{ "code": "FORBIDDEN", "message": "…", "details": {…} }` — never stack traces.
 - **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 409 conflict · 422 schema validation · 500 unexpected.
 - **Existence policy:** resources in a course the caller has no access to return **404** (no existence leak); role-mismatch on a role-only endpoint returns **403**.
-- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` arrives with Phase 5).
+- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` since Phase 5).
 
 Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = any authenticated.
 
@@ -91,14 +91,18 @@ Route changes from the SRS baseline (allowed by SRS section 10, "route names may
 
 Storage layout: `submissions/{course_id}/{assignment_id}/{student_id}/{upload_id}/{sanitised_name}`. For a first submission `upload_id` equals the submission id (exactly as SRS 14); each replacement gets a fresh `upload_id` folder so it can never collide with the file it replaces, and the old file is then removed. Assignment attachments live in the private `materials` bucket at `{course_id}/assignments/{assignment_id}/{upload_id}/{sanitised_name}`.
 
-## Attendance
+## Attendance — implemented in Phase 6
+Lecturer endpoints return **403** to students before any lookup; a lecturer not assigned to the course gets **404** (never reveals other courses). A student sees only their own records of a course they are actively enrolled in. Creating sessions and marking are blocked with **409** when the course is `archived`/`inactive`; reading history is not. Validation errors found by the service (not the schema) are `400 VALIDATION_ERROR`; malformed bodies are `422`.
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| POST | `/courses/{course_id}/attendance/sessions` | L | `{session_date,start_time,end_time,topic?}`; 409 on duplicate; pre-generates no records (marking UI loads roster) |
-| GET | `/courses/{course_id}/attendance/sessions` | L | Paginated |
-| GET | `/attendance/sessions/{session_id}` | L | Session + roster with current statuses |
-| POST | `/attendance/sessions/{session_id}/records` | L | `{records:[{student_id,status,note?}]}` upsert in one transaction; only enrolled students; corrections write audit rows |
-| GET | `/courses/{course_id}/attendance/me` | S | History + `attendance_pct` |
+| POST | `/courses/{course_id}/attendance/sessions` | L | Body (strict): `session_date` (`YYYY-MM-DD`, from 2000-01-01, at most 365 days ahead), `start_time`, `end_time` (`HH:MM`[`:SS`], no time zone, end after start), `topic?` (≤ 200, blank = none). **409** if the course already has a session on that date starting at that time (FR-ATT-06). Pre-generates no records. Returns the session with `records_marked: 0` (201). Audit `attendance.session_create` |
+| GET | `/courses/{course_id}/attendance/sessions` | L | Paginated (`page`, `page_size` ≤ 100), newest first (date, then start time); each item has `records_marked` |
+| GET | `/attendance/sessions/{session_id}` | L | The session plus `summary` (`present`, `absent`, `late`, `excused`, `unmarked` among **actively enrolled** students) and `roster`: a page (`page`, `page_size` ≤ 200 default 100, `q` search by name/registration/email) of actively enrolled students with `status` (null = not marked yet), `note`, `marked_at`, `marked_by` |
+| POST | `/attendance/sessions/{session_id}/records` | L | Body (strict): `records: [{student_id, status, note?}]`, 1 to 500 rows, `status` one of `present`, `absent`, `late`, `excused`, `note` ≤ 500. Every row is validated first and **all problems are listed** (`details.rows`: `index`, `student_id`, `message`); a student not actively enrolled or repeated in the request ⇒ **400 `VALIDATION_ERROR`** and nothing is saved. Otherwise one transaction saves every record and one audit row per change: a first mark is `attendance.mark`, a change of status or note is `attendance.correct` (old and new values). Re-sending identical data changes nothing. Returns `{created, updated, unchanged, total}`. A session dated more than one day after today (UTC) ⇒ **409** (cannot mark the future; the day of grace covers time zones). A database-rule rejection because data changed meanwhile ⇒ 409 "reload and try again" |
+| GET | `/courses/{course_id}/attendance/me` | S | Read-only. `items`: the student's own records, newest session first (`session_id`, `session_date`, `start_time`, `end_time`, `topic`, `status`, `note`, `marked_at`); `summary`: `present`, `absent`, `late`, `excused`, `attended`, `counted_sessions`, `attendance_pct` |
+
+**Percentage policy (FR-ATT-05; default until the institution confirms its own):** `attendance_pct = (present + late) / (present + late + absent) × 100`, rounded half-up to 2 decimals; `excused` sessions are left out; `null` while nothing counts. One calculator (`services/attendance_calc.py`) is used by the API and mirrored by the SQL view `v_student_attendance_summary`.
 
 ## Marks & grading — implemented in Phase 5
 Course scope rule as for Courses. Lecturer-only endpoints return **403** to students before any lookup; students only ever see **published** assessments and **their own** marks (AT-05, AT-12). Writes are blocked with **409** when the course is `archived`/`inactive`.
@@ -120,37 +124,64 @@ Example: CAT 1 (24/30, weight 15) and CAT 2 (40/50, weight 25) with an unmarked 
 
 Assignment grades and assessment marks are **separate**: an assignment grade (above) is feedback on one submission; an assessment mark feeds the course result. Nothing is copied automatically between them (the SRS defines no link, so none was invented).
 
-## Announcements
+## Announcements — implemented in Phase 7
+Same course-scope rules as the other course resources: a lecturer must be assigned to the course (404 otherwise), a student actively enrolled (404 otherwise); writing endpoints return **403** to students and **409** when the course is `archived`/`inactive` (reading still works).
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/courses/{course_id}/announcements` | S,L | S sees published only |
-| POST | `/courses/{course_id}/announcements` | L | `{title,body,published?}`; publishing creates notifications |
-| PATCH | `/announcements/{announcement_id}` | L | Edit / publish / unpublish |
+| POST | `/courses/{course_id}/announcements` | L | Body (strict): `title` (1 to 200, trimmed, required), `body` (1 to 5000, required), `published` (strict true/false, default **false** = draft). 201 + the announcement; `notified` = students told. Publishing on create notifies every actively enrolled student **in the same database transaction** as the announcement and its audit row (`announcement.create`, or `announcement.publish` when published) |
+| GET | `/courses/{course_id}/announcements` | S,L | Paginated (`page`, `page_size` ≤ 100). **Students see published announcements only**, most recently published first; lecturers see everything including drafts, newest first |
+| PATCH | `/announcements/{announcement_id}` | L | Any of `title`, `body`, `published` (none can be null; an empty body ⇒ 400). `published: true` on a draft sets `published_at` and **notifies the students once**; unpublishing hides it from students but keeps `published_at`; re-publishing later does **not** notify again; editing never notifies. Sending identical values changes and audits nothing. Audit actions `announcement.update`, `announcement.publish`, `announcement.unpublish` with old and new values. Response `notified` = students told by this call |
 
-## Notifications
+Announcements are never hard-deleted; unpublish one to hide it.
+
+## Notifications — implemented in Phase 7
+Every user (student or lecturer) has their own inbox. No user id is ever accepted from the client: another user's notification is simply **404**.
+
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/notifications` | A | Own only; `is_read`, pagination; header `X-Unread-Count` |
-| PATCH | `/notifications/{id}/read` | A | Own only |
-| POST | `/notifications/read-all` | A | Convenience |
+| GET | `/notifications` | A | Own notifications, newest first. Query: `is_read` (true/false), `page`, `page_size` ≤ 100. Item: `id`, `type`, `title`, `message`, `link` (an app route such as `/student/assignments/{id}`), `is_read`, `created_at`, `read_at`. The response header **`X-Unread-Count`** is the caller's total unread count, independent of the filter and page (it is exposed to browsers through CORS) |
+| PATCH | `/notifications/{id}/read` | A | Marks one as read (FR-NOT-04); already-read keeps its original `read_at`. 404 if it is not yours |
+| POST | `/notifications/read-all` | A | Marks all of the caller's unread notifications; returns `{updated: n}` |
 
-## Timetable
+## Timetable — implemented in Phase 8
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/timetable` | A | Authorised courses only; `from`, `to` |
-| POST | `/courses/{course_id}/timetable` | L | *Pending decision* (Pre-Coding Checklist: seeded vs lecturer-entered). Implement only after decision |
+| GET | `/timetable` | A | Classes of the caller's own **active** courses (student: enrolled; lecturer: assigned). Query `from`, `to` (ISO dates). |
 
-## Dashboards & reports
+- Default window: today (UTC) to today + 6 days. Only `from` → 7 days from it; only `to` → the 7 days ending on it. `to` before `from` → **400**; more than 93 days → **400**; a malformed date → **422**.
+- Response: `{date_from, date_to, items: [{entry_id, course_id, course_code, course_name, date, day_of_week (1=Mon..7=Sun), start_time, end_time, room, notes, recurring}]}`, sorted by date then start time.
+- A stored weekly entry (optionally limited by `recurrence.from` / `recurrence.until`) is expanded into one item per matching date; a one-off entry (`specific_date`) appears once.
+- The timetable is **read-only**: it is seeded or loaded by the institution (SRS §22 leaves lecturer entry open), so there is no `POST` route.
+
+## Dashboards — implemented in Phase 8
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/dashboard` | A | Role-specific aggregate (see below) |
-| GET | `/courses/{course_id}/reports/attendance` | L | Per-student %, per-session counts; `student_id` filter |
-| GET | `/courses/{course_id}/reports/performance` | L | Per-assessment stats, per-student weighted totals |
-| GET | `/courses/{course_id}/reports/submissions` | L | Per-assignment submitted/late/graded/missing counts |
+| GET | `/dashboard` | A | Role-specific overview of the caller's **active** courses (archived/inactive are hidden). Computed from live records on every call. |
 
-`/dashboard` (student): `{courses, upcoming_assignments, attendance_summary, recent_marks, announcements, unread_notifications}`.
-`/dashboard` (lecturer): `{courses, pending_grading, upcoming_deadlines, attendance_summary, performance_summary}`.
-*Note:* `/dashboard` and the three-way reports split are the only additions beyond the SRS §10 table (needed by FR-STU-01, FR-LEC-01, FR-REP-02).
+`/dashboard` (student, `role: "student"`):
+- `courses`; `upcoming_assignments` (published, not closed, deadline ahead, soonest first, max 10, each with the student's own `submission_status`: `not_submitted|submitted|late|graded|returned`);
+- `attendance_summary` (one row per course, same policy as `/courses/{id}/attendance/me`); `recent_marks` (max 5, newest first, **released** assignment grades and **published** assessment marks only);
+- `announcements` (latest 5 published, 200-character `preview`); `unread_notifications`.
+
+`/dashboard` (lecturer, `role: "lecturer"`):
+- `courses` (with `enrolled_count`); `pending_grading` `{total, items}` (submitted or late work from actively enrolled students; max 10 items); `upcoming_deadlines` (max 10, with `enrolled` and `submitted`);
+- `attendance_summary` (sessions, `last_session_date`, pooled `attendance_pct`); `performance_summary` (published assessments, `students_without_marks`, `average_weighted_percent`).
+
+The number of database queries is fixed (lists are fetched in bulk), so the dashboard does not slow down as classes grow (NFR-PERF-01).
+
+## Reports — implemented in Phase 8
+| Method | Path | Access | Notes |
+|---|---|---|---|
+| GET | `/courses/{course_id}/reports/attendance` | L | `student_id`, `from`, `to` filters. `{summary, students[], sessions[]}` |
+| GET | `/courses/{course_id}/reports/submissions` | L | `student_id`, `assignment_id` filters. `{summary, assignments[]}` |
+| GET | `/courses/{course_id}/reports/performance` | L | `student_id` filter. `{summary, assessments[], students[]}` |
+
+- Lecturer assigned to the course only: a student gets **403**, a lecturer of another course **404**. Archived courses stay readable.
+- Reports cover the **actively enrolled** students. `student_id` of someone not in the class (or unknown) → **404**; `to` before `from` → **400**.
+- Totals reconcile with the source records (AT-20): per-student and per-session counts add up to the summary; `submitted + late + graded + returned + not_submitted = assignments x students`.
+- Attendance percentage = (present + late) / (present + late + absent), excused excluded, 2 decimals; `unmarked` counts students with no record for a session. Submissions: `missing` = not submitted after the deadline. Performance: per-student totals use **published** assessments only; `marks_entered` counts the marks recorded.
+- Lists are complete (not paginated): they are class-sized.
 
 ## Authorization rules (centralised in `app/core/permissions.py`)
 1. `get_current_user` verifies the token with Supabase, loads `profiles` row; user IDs are **never** taken from the client body.
@@ -168,5 +199,15 @@ Assignment grades and assessment marks are **separate**: an assignment grade (ab
 - Files are served only through signed URLs with `Content-Disposition: attachment`, so uploaded content is never rendered inline.
 - No malware scanning in v1.0 (SRS 14 says to consider it before production): treat ZIP/Office downloads as untrusted by students' devices, and add a scanner (for example ClamAV) before going live.
 
-## Notification events
-`assignment_published`, `marks_released`, `grade_released`, `material_added`, `announcement` → fan-out to active enrolled students in the same transaction as the triggering change.
+## Notification events (FR-NOT-03, AT-18)
+Notifications go to the **actively enrolled** students of the course; withdrawn students and other courses' students get none. The event is raised only when something **becomes visible**, never for drafts, edits, hiding or repeats:
+
+| Type | Raised when | Title | Link |
+|---|---|---|---|
+| `announcement` | an announcement is published for the first time (create with `published: true`, or first `PATCH published: true`) | `New announcement: {title}` (message = first 200 characters) | `/student/courses/{course_id}` |
+| `assignment_published` | an assignment is created published, or a draft is published | `New assignment: {title}` (message = due date, UTC) | `/student/assignments/{id}` |
+| `material_added` | a material is uploaded published, or a draft is published | `New material: {title}` | `/student/courses/{course_id}/materials` |
+| `marks_released` | an assessment is published | `Marks released: {name}` | `/student/marks` |
+| `grade_released` | a submission's grade becomes visible to its student (single release, or bulk release: only the students it reveals) | `Grade released: {assignment title}` | `/student/assignments/{id}` |
+
+**Delivery guarantees:** announcement notifications are written in the same transaction as the announcement. The other four are **best effort**: they are created right after the lecturer's change is saved, and a failure is logged but never blocks or undoes the change. Notifications are not created for lecturers in this version, and none are sent by email/SMS/push (future enhancement, SRS 2.3).

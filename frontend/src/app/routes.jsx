@@ -14,9 +14,6 @@ import StudentAttendance from '../pages/student/StudentAttendance.jsx'
 import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
-import LecturerAttendance from '../pages/lecturer/LecturerAttendance.jsx'
-import LecturerSettings from '../pages/lecturer/LecturerSettings.jsx'
-import LecturerReports from '../pages/lecturer/LecturerReports.jsx'
 import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
 import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
 
@@ -35,11 +32,11 @@ const LECTURER_ROUTES = [
   ['courses/:courseId', 'Course Details', 'Phase 2'], ['courses/:courseId/students', 'Students', 'Phase 2'],
   ['materials', 'Materials Management', 'Phase 3'], ['courses/:courseId/materials', 'Materials Management', 'Phase 3'],
   ['courses/:courseId/assignments', 'Assignment Management', 'Phase 4'],
-  ['assignments/:assignmentId/submissions', 'Submission Review', 'Phase 4'], ['attendance', 'Attendance Tracker', 'Phase 6'], ['courses/:courseId/attendance', 'Attendance Management', 'Phase 6'],
+  ['assignments/:assignmentId/submissions', 'Submission Review', 'Phase 4'], ['courses/:courseId/attendance', 'Attendance Management', 'Phase 6'],
   ['marks', 'Marks & Assessment', 'Phase 5'], ['courses/:courseId/marks', 'Marks Management', 'Phase 5'],
   ['announcements', 'Announcements', 'Phase 7'],
   ['courses/:courseId/announcements', 'Announcements', 'Phase 7'],
-  ['reports', 'Reports', 'Phase 8'], ['courses/:courseId/reports', 'Reports', 'Phase 8'], ['notifications', 'Notifications', 'Phase 7'],
+  ['courses/:courseId/reports', 'Reports', 'Phase 8'], ['notifications', 'Notifications', 'Phase 7'],
   ['timetable', 'Timetable', 'Phase 8'], ['profile', 'Profile', 'Phase 1'], ['settings', 'Settings', 'Phase 1'],
 ]
 
@@ -61,12 +58,6 @@ const PAGES = {
   'lecturer:courses/:courseId': <LecturerCourses />,
   'lecturer:materials': <LecturerMaterials />,
   'lecturer:courses/:courseId/materials': <LecturerMaterials />,
-  'lecturer:attendance': <LecturerAttendance />,
-  'lecturer:courses/:courseId/attendance': <LecturerAttendance />,
-  'lecturer:settings': <LecturerSettings />,
-  'lecturer:profile': <LecturerSettings />,
-  'lecturer:reports': <LecturerReports />,
-  'lecturer:courses/:courseId/reports': <LecturerReports />,
   'lecturer:marks': <LecturerMarks />,
   'lecturer:courses/:courseId/marks': <LecturerMarks />,
   'lecturer:timetable': <LecturerTimetable />,

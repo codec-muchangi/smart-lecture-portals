@@ -15,7 +15,7 @@ import { api } from '../services/apiClient.js'
  * - Data: the unread badge reads GET /notifications (Phase 7) and the term
  *   chip reads GET /courses. If /notifications is not live yet, the bell simply
  *   shows no badge.
- * - Lecturer items that live inside a course (grading,
+ * - Lecturer items that live inside a course (grading, attendance,
  *   reports) open My Courses, where a course is chosen
  *   first, exactly like the course tabs described in docs/FRONTEND.md.
  */
@@ -42,11 +42,11 @@ const NAV = {
     { label: 'My Courses', icon: 'menu_book', to: 'courses' },
     { label: 'Materials Management', icon: 'folder_open', to: 'materials' },
     { label: 'Assignments & Grading', icon: 'assignment_turned_in', course: true },
-    { label: 'Attendance Tracker', icon: 'how_to_reg', to: 'attendance' },
+    { label: 'Attendance Tracker', icon: 'how_to_reg', course: true },
     { label: 'Marks & Assessment', icon: 'grade', to: 'marks' },
     { label: 'Announcements', icon: 'campaign', to: 'announcements' },
     { label: 'Timetable & Schedule', icon: 'calendar_today', to: 'timetable' },
-    { label: 'Academic Reports', icon: 'analytics', to: 'reports' },
+    { label: 'Academic Reports', icon: 'analytics', course: true },
     { label: 'Settings', icon: 'settings', to: 'settings' },
   ],
   student: [
@@ -69,7 +69,6 @@ const PAGE_TITLES = {
   assignments: 'Assignments',
   attendance: 'Attendance',
   marks: 'Marks',
-  reports: 'Reports',
   announcements: 'Announcements',
   notifications: 'Notifications',
   timetable: 'Timetable',
