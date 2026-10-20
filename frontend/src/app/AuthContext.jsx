@@ -26,5 +26,5 @@ export function AuthProvider({ children }) {
   }
   const logout = async () => { await supabase.auth.signOut(); setUser(null) }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, login, logout, refresh: loadProfile }}>{children}</AuthContext.Provider>
 }
