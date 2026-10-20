@@ -14,6 +14,10 @@ import StudentAttendance from '../pages/student/StudentAttendance.jsx'
 import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
+import LecturerAttendance from '../pages/lecturer/LecturerAttendance.jsx'
+import StudentSettings from '../pages/student/StudentSettings.jsx'
+import LecturerSettings from '../pages/lecturer/LecturerSettings.jsx'
+import LecturerReports from '../pages/lecturer/LecturerReports.jsx'
 import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
 import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
 
@@ -47,6 +51,8 @@ function Home() {
 
 const DASHBOARDS = { lecturer: <LecturerDashboard />, student: <StudentDashboard /> }
 const PAGES = {
+  'student:settings': <StudentSettings />,
+  'student:profile': <StudentSettings />,
   'student:courses': <StudentCourses />,
   'student:courses/:courseId': <StudentCourses />,
   'student:assignments': <StudentAssignments />,
@@ -63,6 +69,13 @@ const PAGES = {
   'lecturer:timetable': <LecturerTimetable />,
   'lecturer:announcements': <LecturerAnnouncements />,
   'lecturer:courses/:courseId/announcements': <LecturerAnnouncements />,
+  'lecturer:attendance': <LecturerAttendance />,
+  'lecturer:courses/:courseId/attendance': <LecturerAttendance />,
+  'lecturer:settings': <LecturerSettings />,
+  'lecturer:profile': <LecturerSettings />,
+  'lecturer:reports': <LecturerReports />,
+  'lecturer:courses/:courseId/reports': <LecturerReports />,
+  
 }
 
 const roleRoutes = (role, list) => (

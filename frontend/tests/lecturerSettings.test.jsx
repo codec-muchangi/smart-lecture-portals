@@ -101,6 +101,16 @@ test('shows the profile from the server with registry fields read-only', async (
   expect(save()).toBeDisabled()
 })
 
+test('falls back to initials when the photo link does not load', async () => {
+  me = { ...ME, avatar_url: 'https://example.com/missing.png' }
+  install()
+  const { container } = renderPage()
+  await waitFor(() => expect(container.querySelector('.slpx-avatar img')).not.toBeNull())
+  fireEvent.error(container.querySelector('.slpx-avatar img'))
+  expect(container.querySelector('.slpx-avatar img')).toBeNull()
+  expect(container.querySelector('.slpx-avatar')).toHaveTextContent('MS')
+})
+
 test('saves only what changed and refreshes the signed-in user', async () => {
   install()
   renderPage()
@@ -277,18 +287,19 @@ test('signs out other devices only after confirmation', async () => {
   expect(signOutMock).toHaveBeenCalledWith({ scope: 'others' })
 })
 
-test('reports a failed sign-out of other devices and can log this device out', async () => {
+test('reports a failed sign-out of other devices and logs out this device only', async () => {
   install()
   signOutMock.mockResolvedValue({ error: new Error('boom') })
-  auth.logout.mockResolvedValue(undefined)
   renderPage()
   await waitFor(() => expect(name()).toHaveValue('Marcus Sterling'))
   openTab('Sessions')
   fireEvent.click(screen.getByRole('button', { name: 'Sign out other devices' }))
   fireEvent.click(screen.getByRole('button', { name: 'Yes, sign them out' }))
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('could not be signed out'))
+  signOutMock.mockClear()
+  signOutMock.mockResolvedValue({ error: null })
   fireEvent.click(screen.getByRole('button', { name: /Log out/ }))
-  await waitFor(() => expect(auth.logout).toHaveBeenCalled())
+  await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ scope: 'local' }))
 })
 
 test('offers a retry when the profile cannot load', async () => {
