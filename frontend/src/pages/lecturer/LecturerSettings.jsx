@@ -7,6 +7,7 @@ import { useAuth } from '../../app/AuthContext.jsx'
 import { COURSE_STYLES, ErrorCard, PhasePanel, Skeleton, initials, renderIcon, useCourseFonts } from '../../components/courseKit.jsx'
 import { DISPLAY_DEFAULTS, SIZES, applyDisplay, readDisplay, saveDisplay } from '../../utils/display.js'
 import { formatDate, sentenceCase } from '../../utils/format.js'
+import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, validateProfile, without } from '../../utils/settingsHelpers.js'
 
 /*
  * Smart Lecture Portal: lecturer Faculty Settings & Preferences
@@ -135,53 +136,6 @@ const SETTINGS_STYLES = `
 `
 
 /* ---------- helpers ---------- */
-
-const hasControl = (text) => [...text].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
-const PHONE = /^[0-9 +()-]{7,20}$/
-
-function validateProfile(values) {
-  const errors = {}
-  const name = values.full_name.trim()
-  if (name.length < 2 || name.length > 120 || hasControl(name)) errors.full_name = 'Enter your full name (2 to 120 characters).'
-  const phone = values.phone.trim()
-  if (phone && !PHONE.test(phone)) errors.phone = 'Use 7 to 20 characters: digits, spaces, + - ( ).'
-  const avatar = values.avatar_url.trim()
-  if (avatar) {
-    let ok = false
-    try {
-      ok = new URL(avatar).protocol === 'https:'
-    } catch {
-      ok = false
-    }
-    if (!ok) errors.avatar_url = 'Use a full https:// link, or leave it empty.'
-  }
-  return errors
-}
-
-const baseValues = (me) => ({ full_name: me?.full_name ?? '', phone: me?.phone ?? '', avatar_url: me?.avatar_url ?? '' })
-
-function changedPayload(me, values) {
-  const base = baseValues(me)
-  const payload = {}
-  if (values.full_name.trim() !== base.full_name) payload.full_name = values.full_name.trim()
-  if (values.phone.trim() !== base.phone) payload.phone = values.phone.trim() || null
-  if (values.avatar_url.trim() !== base.avatar_url) payload.avatar_url = values.avatar_url.trim() || null
-  return payload
-}
-
-function passwordChecks(current, next, confirm) {
-  return [
-    { id: 'len', label: 'At least 8 characters', met: next.length >= 8 },
-    { id: 'letter', label: 'Contains a letter', met: /[A-Za-z]/.test(next) },
-    { id: 'digit', label: 'Contains a digit', met: /\d/.test(next) },
-    { id: 'diff', label: 'Different from the current password', met: next.length > 0 && next !== current },
-    { id: 'match', label: 'Both new passwords match', met: confirm.length > 0 && next === confirm },
-  ]
-}
-
-const without = (object, key) => Object.fromEntries(Object.entries(object).filter(([name]) => name !== key))
-const detailsOf = (error) => (error && typeof error.details === 'object' && error.details ? error.details : {})
-const firstText = (value) => (Array.isArray(value) ? String(value[0] ?? '') : String(value ?? ''))
 
 /* ---------- pieces ---------- */
 
@@ -502,7 +456,6 @@ function DisplayTab() {
 }
 
 function SessionsTab({ me }) {
-  const { logout } = useAuth()
   const [asking, setAsking] = useState(false)
   const [status, setStatus] = useState(null)
   const others = useMutation({
@@ -519,7 +472,14 @@ function SessionsTab({ me }) {
       setStatus({ ok: false, text: 'Other devices could not be signed out. Please try again.' })
     },
   })
-  const leave = useMutation({ mutationFn: () => logout() })
+  // scope 'local' ends only this browser; the default would end every device.
+  const leave = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error) throw error
+    },
+    onError: () => setStatus({ ok: false, text: 'You could not be signed out. Please try again.' }),
+  })
 
   return (
     <div className="slpx-panel">
@@ -581,11 +541,12 @@ function SessionsTab({ me }) {
 export default function LecturerSettings() {
   useCourseFonts()
   const [tab, setTab] = useState('profile')
+  const [failedPhoto, setFailedPhoto] = useState('')
   const meQuery = useQuery({ queryKey: ME_KEY, queryFn: () => api('/me') })
   const me = meQuery.data
   const details = me?.details ?? {}
   const displayName = me?.full_name || me?.email || 'Lecturer'
-  const hasPhoto = typeof me?.avatar_url === 'string' && me.avatar_url.startsWith('https://')
+  const hasPhoto = typeof me?.avatar_url === 'string' && me.avatar_url.startsWith('https://') && failedPhoto !== me.avatar_url
 
   return (
     <div className="slpc" aria-label="Faculty settings and preferences">
@@ -624,7 +585,7 @@ export default function LecturerSettings() {
                 <div className="slpx-id-band" aria-hidden="true" />
                 <div className="slpx-id-body">
                   <span className="slpx-avatar" aria-hidden="true">
-                    {hasPhoto ? <img src={me.avatar_url} alt="" /> : initials(me.full_name)}
+                    {hasPhoto ? <img src={me.avatar_url} alt="" onError={() => setFailedPhoto(me.avatar_url)} /> : initials(me.full_name)}
                   </span>
                   <h2 className="slpx-name">{displayName}</h2>
                   {details.title && <p className="slpx-role">{details.title}</p>}
