@@ -22,6 +22,7 @@ import LecturerMarks from '../pages/lecturer/LecturerMarks.jsx'
 import LecturerTimetable from '../pages/lecturer/LecturerTimetable.jsx'
 import StudentTimetable from '../pages/student/StudentTimetable.jsx'
 import StudentNotifications from '../pages/student/StudentNotifications.jsx'
+import StudentMarks from '../pages/student/StudentMarks.jsx'
 
 const P = (title, phase) => <Placeholder title={title} phase={phase} />
 
@@ -62,6 +63,7 @@ const PAGES = {
   'student:assignments/:assignmentId': <StudentAssignments />,
   'student:timetable': <StudentTimetable />,
   'student:notifications': <StudentNotifications />,
+  'student:marks': <StudentMarks />,
   'student:attendance': <StudentAttendance />,
   'student:courses/:courseId/attendance': <StudentAttendance />,
   'lecturer:courses': <LecturerCourses />,
