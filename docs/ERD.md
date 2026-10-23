@@ -135,3 +135,10 @@ erDiagram
 - Indexes: `timetable_course_day_idx (course_id, day_of_week)` and `course_enrollments_active_idx (course_id) where status = 'active'` (roster and dashboard reads).
 - No existing row is changed and no new table is created: dashboards and reports are computed from the existing records on every request, nothing is stored or hard-coded.
 - `scripts/verify_database.py` now runs 174 checks.
+
+## Migration 0011 (Phase 9) — hardening
+- **Least privilege:** all privileges on public tables and sequences are revoked from `anon` and `authenticated` (Row Level Security was already on with no client policies); default privileges for future tables are revoked too. The backend uses `service_role`, which is untouched.
+- **`trg_no_truncate`** (statement triggers `<table>_no_truncate`): `TRUNCATE` is refused on `audit_logs`, `profiles`, `students`, `lecturers`, `courses`, `course_lecturers`, `course_enrollments`, `materials`, `assignments`, `submissions`, `assessments`, `assessment_marks`, `attendance_sessions`, `attendance_records` and `announcements`, closing the gap left by the row-level "never hard-delete" triggers.
+- **`purge_read_notifications(p_days)`** (service role only): deletes notifications that were read more than `p_days` days ago (minimum 30; unread are never deleted) and writes one `notifications.purge` audit row. Index `notifications_purge_idx (read_at) where is_read`.
+- No existing row changes. `scripts/verify_database.py` now applies eleven migrations and runs 209 checks (it simulates Supabase's default table grants, so the revocation is really tested).
+

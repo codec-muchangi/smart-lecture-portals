@@ -1,9 +1,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
+from fastapi.exceptions import RequestValidationError
 
 from app.core.errors import ValidationFailed
+from app.core.limits import upload_limit
 from app.core.security import CurrentUserDep, LecturerDep
 from app.schemas.common import DownloadOut, Page
 from app.schemas.material import DESCRIPTION_MAX, TITLE_MAX, MaterialCategory, MaterialOut, MaterialUpdate
@@ -32,7 +34,23 @@ def list_materials(
     )
 
 
-@course_router.post("", status_code=201, response_model=MaterialOut)
+_TRUE, _FALSE = {"true", "1", "yes", "on"}, {"false", "0", "no", "off"}
+
+
+def _form_bool(raw: str | None, *, default: bool, field: str) -> bool:
+    """A multipart flag. Parsed here because newer FastAPI versions turn a MISSING boolean form field into
+    False, which would silently turn the documented default (published) off."""
+    if raw is None or raw.strip() == "":
+        return default
+    value = raw.strip().lower()
+    if value in _TRUE | _FALSE:
+        return value in _TRUE
+    raise RequestValidationError(
+        [{"loc": ("body", field), "msg": "Input should be true or false", "type": "bool_parsing"}]
+    )
+
+
+@course_router.post("", status_code=201, response_model=MaterialOut, dependencies=[Depends(upload_limit)])
 def upload_material(
     course_id: UUID,
     user: LecturerDep,
@@ -40,7 +58,7 @@ def upload_material(
     title: Annotated[str, Form(min_length=1, max_length=TITLE_MAX)],
     description: Annotated[str | None, Form(max_length=DESCRIPTION_MAX)] = None,
     category: Annotated[MaterialCategory, Form()] = "other",
-    published: Annotated[bool, Form()] = True,
+    published: Annotated[str | None, Form(description="true (default) or false")] = None,
 ) -> dict:
     return material_service.create_material(
         user,
@@ -48,7 +66,7 @@ def upload_material(
         title=title,
         description=description,
         category=category,
-        published=published,
+        published=_form_bool(published, default=True, field="published"),
         file_obj=file.file,
         original_name=file.filename,
     )

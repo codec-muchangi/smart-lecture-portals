@@ -1,0 +1,11 @@
+# Secret-scan settings (CI job "Secret scan", gitleaks).
+title = "Smart Lecture Portal"
+
+[extend]
+useDefault = true   # keep every built-in rule
+
+[allowlist]
+description = "Fake credentials used to test that logs redact secrets (assembled at run time, never real)"
+paths = [
+  '''backend/tests/test_hardening_logging\.py''',
+]

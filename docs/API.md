@@ -7,16 +7,18 @@ Interactive docs: FastAPI `/docs` (OpenAPI). This file is the contract baseline 
 - Timestamps ISO 8601 UTC. IDs are UUIDs.
 - **Pagination:** `?page=1&page_size=20` (max 100) → `{ "items": [...], "page": 1, "page_size": 20, "total": 135 }`.
 - **Errors:** `{ "code": "FORBIDDEN", "message": "…", "details": {…} }` — never stack traces.
-- **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 409 conflict · 422 schema validation · 500 unexpected.
+- **Status codes:** 200/201 success · 204 no body · 400 bad request · 401 unauthenticated · 403 forbidden · 404 not found · 405 wrong method · 409 conflict · 413 body too large · 422 schema validation · 429 too many requests (`Retry-After`) · 500 unexpected (`details.request_id`) · 503 service unavailable (`Retry-After`).
+- **Request id:** every response carries `X-Request-ID` (a harmless id sent by the client is kept, otherwise one is generated). An unexpected 500 repeats it in `details.request_id`, so a user can quote it and the logs can be searched for it. No stack trace, SQL, token or secret is ever returned (NFR-SEC-05).
 - **Existence policy:** resources in a course the caller has no access to return **404** (no existence leak); role-mismatch on a role-only endpoint returns **403**.
-- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` since Phase 5).
+- Codes: `UNAUTHENTICATED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, CONFLICT, FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED, DEADLINE_PASSED, RATE_LIMITED, SERVICE_UNAVAILABLE, INTERNAL_ERROR` (`MARK_OUT_OF_RANGE` since Phase 5; `METHOD_NOT_ALLOWED`, `PAYLOAD_TOO_LARGE` since Phase 9).
 
 Access legend: **S** = student (enrolled), **L** = lecturer (assigned), **A** = any authenticated.
 
 ## Health
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| GET | `/health` | public | Liveness (outside `/api/v1`) |
+| GET | `/health` | public | Liveness (outside `/api/v1`): the process is up; never touches the database |
+| GET | `/health/ready` | public | Readiness (outside `/api/v1`), Phase 9: `{"status":"ready"}`, or **503** `{"status":"unavailable"}` with `Retry-After` when the database does not answer; no other detail is revealed |
 
 ## Auth (thin wrappers over Supabase Auth) — implemented in Phase 1
 | Method | Path | Access | Request | Response |
@@ -182,6 +184,26 @@ The number of database queries is fixed (lists are fetched in bulk), so the dash
 - Totals reconcile with the source records (AT-20): per-student and per-session counts add up to the summary; `submitted + late + graded + returned + not_submitted = assignments x students`.
 - Attendance percentage = (present + late) / (present + late + absent), excused excluded, 2 decimals; `unmarked` counts students with no record for a session. Submissions: `missing` = not submitted after the deadline. Performance: per-student totals use **published** assessments only; `marks_entered` counts the marks recorded.
 - Lists are complete (not paginated): they are class-sized.
+
+## Security hardening — implemented in Phase 9
+- **Every endpoint except login, password-reset request and the health probes requires a valid token** (NFR-SEC-01). A test reads the OpenAPI description and fails if any other endpoint is public, undocumented, or an unpaginated list.
+- **Response headers on every response, errors included:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, `Cross-Origin-Resource-Policy: same-site`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` and `Cache-Control: no-store` (personal data and signed links are never cached); `Strict-Transport-Security` in production. Large JSON responses are gzip-compressed.
+- **CORS:** only the origins in `CORS_ORIGINS`; methods `GET, POST, PUT, PATCH, DELETE, OPTIONS`; request headers `Authorization, Content-Type, X-Request-ID`; no credentials (tokens travel in the `Authorization` header, never in cookies, so CSRF does not apply). The browser can read `X-Unread-Count`, `X-Request-ID` and `Retry-After`.
+- **Rate limits** (HTTP 429 with `Retry-After`; in-memory, per API process):
+
+| Endpoint(s) | Limit (default) | Counted per | Settings |
+|---|---|---|---|
+| `POST /auth/login` | 10 / 60 s | client address | `LOGIN_RATE_LIMIT`, `LOGIN_RATE_WINDOW_SECONDS` |
+| `POST /auth/password/reset` | 5 / 900 s | client address | `RESET_RATE_LIMIT`, `RESET_RATE_WINDOW_SECONDS` |
+| `POST /auth/password/change` | 5 / 900 s | signed-in session | `PASSWORD_CHANGE_RATE_LIMIT`, `PASSWORD_CHANGE_RATE_WINDOW_SECONDS` |
+| File uploads (materials, assignment attachment, submissions) | 30 / 60 s | signed-in session | `UPLOAD_RATE_LIMIT`, `UPLOAD_RATE_WINDOW_SECONDS` |
+| Reports | 60 / 60 s | signed-in session | `REPORT_RATE_LIMIT`, `REPORT_RATE_WINDOW_SECONDS` |
+
+  "Per session" means a hash of the bearer token, so a whole class behind one campus address does not share a budget; the token itself is never stored or logged.
+- **Body limits:** files `MAX_UPLOAD_MB`; every other request body `MAX_JSON_KB` (default 512), over which the answer is **413** `PAYLOAD_TOO_LARGE`.
+- **Production start-up check:** with `ENVIRONMENT=production` the API refuses to start unless `SUPABASE_URL` is https, the Supabase keys are set, `CORS_ORIGINS` lists exact public https origins (no `*`, no localhost) and `PASSWORD_RESET_REDIRECT_URL` is a public https URL. In production `/docs`, `/redoc` and `/openapi.json` are not served. `ENVIRONMENT` must be one of `development, test, staging, production`.
+- **Logging (SRS 12):** one access line per request (`METHOD path -> status in N ms [request_id=...]`: no query string, headers or body); one `WARNING` per refused request (401/403/429) with client address and request id; requests slower than `SLOW_REQUEST_SECONDS` (default 2, NFR-PERF-01) are logged as `SLOW`. A redaction filter masks bearer tokens, JWTs, passwords and API keys in every log line and traceback, and the HTTP client's own request-URL logging is switched off.
+- **Notification retention:** `python scripts/purge_old_notifications.py [--days 90]` deletes notifications that were **read** more than N days ago (minimum 30; unread are never deleted); each run is audited (`notifications.purge`).
 
 ## Authorization rules (centralised in `app/core/permissions.py`)
 1. `get_current_user` verifies the token with Supabase, loads `profiles` row; user IDs are **never** taken from the client body.

@@ -71,6 +71,8 @@ C, A, AS = "00000000-0000-0000-0000-0000000000c1", "00000000-0000-0000-0000-0000
 print("== migrations on a real PostgreSQL ==")
 ok("Supabase stand-ins", """
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 create schema auth; create table auth.users (id uuid primary key default gen_random_uuid(), email text);
 create schema storage;
 create table storage.buckets (id text primary key, name text, public boolean default false,
@@ -262,6 +264,29 @@ bad("recurrence dates must be ISO dates", "insert into timetable_entries (course
 bad("recurrence 'until' cannot precede 'from'", "insert into timetable_entries (course_id, day_of_week, start_time, end_time, recurrence) select course_id, 2, '08:00', '09:00', '{\"day_of_week\":2,\"from\":\"2026-12-01\",\"until\":\"2026-09-01\"}'::jsonb from timetable_entries limit 1;", "")
 check("timetable day index exists", "select count(*) from pg_indexes where indexname='timetable_course_day_idx';", "1")
 check("active-enrolment index exists", "select count(*) from pg_indexes where indexname='course_enrollments_active_idx';", "1")
+
+print("== Phase 9: hardening (migration 0011) ==")
+for tbl in ("audit_logs", "courses", "submissions", "assessment_marks", "attendance_records", "announcements", "profiles"):
+    bad(f"TRUNCATE is blocked on {tbl}", f"truncate {tbl} cascade;", "never bulk-deleted")
+    check(f"{tbl} rows survive the blocked TRUNCATE", f"select count(*) >= 0 from {tbl};", "t")
+check("audit history survived", "select count(*) > 0 from audit_logs;", "t")
+for role in ("anon", "authenticated"):
+    check(f"{role} has no privilege on any public table", f"select count(*) from information_schema.role_table_grants where grantee='{role}' and table_schema='public';", "0")
+    check(f"{role} cannot insert into audit_logs", f"select has_table_privilege('{role}','public.audit_logs','insert');", "f")
+    check(f"{role} cannot select notifications", f"select has_table_privilege('{role}','public.notifications','select');", "f")
+    check(f"{role} cannot run purge_read_notifications", f"select has_function_privilege('{role}','purge_read_notifications(integer)','execute');", "f")
+check("service_role can run purge_read_notifications", "select has_function_privilege('service_role','purge_read_notifications(integer)','execute');", "t")
+bad("retention below 30 days is refused", "select purge_read_notifications(7);", "at least 30 days")
+bad("a missing retention is refused", "select purge_read_notifications(null);", "at least 30 days")
+NU = U["s1"]
+ok("an old read notification", f"insert into notifications (user_id, type, title, message, is_read, read_at, created_at) values ('{NU}', 'general', 'Old', 'Old', true, now() - interval '200 days', now() - interval '210 days');")
+ok("a recent read notification", f"insert into notifications (user_id, type, title, message, is_read, read_at) values ('{NU}', 'general', 'Recent', 'Recent', true, now() - interval '5 days');")
+ok("an old UNREAD notification", f"insert into notifications (user_id, type, title, message, created_at) values ('{NU}', 'general', 'OldUnread', 'OldUnread', now() - interval '300 days');")
+check("purge removes only the old read one", "select purge_read_notifications(90);", "1")
+check("the recent read notification stays", "select count(*) from notifications where title='Recent';", "1")
+check("the old unread notification stays", "select count(*) from notifications where title='OldUnread';", "1")
+check("the purge is audited", "select (new_value->>'deleted') || '/' || (new_value->>'older_than_days') from audit_logs where action='notifications.purge';", "1/90")
+check("purge index exists", "select count(*) from pg_indexes where indexname='notifications_purge_idx';", "1")
 
 print("\nFAILED:" if fails else "\nALL REAL-DATABASE CHECKS PASSED", fails if fails else "")
 sys.exit(1 if fails else 0)

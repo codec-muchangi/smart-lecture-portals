@@ -66,6 +66,9 @@ Lecturers publish course announcements; students enrolled in the course see only
 ## Dashboards and reports
 Students and lecturers get a role-specific dashboard (`GET /dashboard`) and a read-only timetable (`GET /timetable`); lecturers get attendance, submission and performance reports per course. Everything is computed from live records and limited to what the caller may see. See `docs/PHASE8_BACKEND.md` for the rules, the setup steps and the live-check list.
 
+## Security hardening
+Every response carries security headers and a request id; production refuses to start with an unsafe configuration; login, password change, uploads and reports are rate limited; logs never contain tokens or passwords; the database blocks bulk deletion of academic records. Whole-API tests fail when an endpoint is public by accident, undocumented, or an unpaginated list. See `docs/PHASE9_BACKEND.md` for the findings, the setup steps and the live-check list.
+
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py

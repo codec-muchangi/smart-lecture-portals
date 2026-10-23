@@ -466,6 +466,33 @@ def _rpc_notify_course_students(db, p):
     return n
 
 
+def _rpc_purge_read_notifications(db, p):
+    """Mirrors purge_read_notifications(): old READ notifications only, minimum 30 days, one audit row."""
+    from datetime import timedelta
+
+    from app.utils import clock
+
+    days = p["p_days"]
+    if days is None or days < 30:
+        raise Exception("retention must be at least 30 days (22023)")
+    cutoff = (clock.utcnow() - timedelta(days=days)).isoformat()
+    rows = db.tables.get("notifications", [])
+    keep = [r for r in rows if not (r["is_read"] and r["read_at"] < cutoff)]
+    deleted = len(rows) - len(keep)
+    db.tables["notifications"] = keep
+    db.tables.setdefault("audit_logs", []).append(
+        {
+            "actor_user_id": None,
+            "action": "notifications.purge",
+            "entity_type": "notifications",
+            "entity_id": None,
+            "old_value": None,
+            "new_value": {"older_than_days": days, "deleted": deleted},
+        }
+    )
+    return deleted
+
+
 def _assigned(db, course_id, lecturer_id):
     return any(
         cl["course_id"] == course_id and cl["lecturer_id"] == lecturer_id
@@ -546,6 +573,7 @@ RPC_HANDLERS = {
     "notify_course_students": _rpc_notify_course_students,
     "create_announcement": _rpc_create_announcement,
     "update_announcement": _rpc_update_announcement,
+    "purge_read_notifications": _rpc_purge_read_notifications,
 }
 
 

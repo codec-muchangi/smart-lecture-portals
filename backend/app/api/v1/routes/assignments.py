@@ -1,9 +1,10 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 
 from app.core.errors import ValidationFailed
+from app.core.limits import upload_limit
 from app.core.security import CurrentUserDep, LecturerDep, StudentDep
 from app.schemas.assignment import (
     AssignmentCreate,
@@ -66,7 +67,9 @@ def update_assignment(assignment_id: UUID, body: AssignmentUpdate, user: Lecture
 
 
 # ---------------- optional attachment ----------------
-@assignment_router.put("/{assignment_id}/attachment", response_model=AssignmentDetailOut)
+@assignment_router.put(
+    "/{assignment_id}/attachment", response_model=AssignmentDetailOut, dependencies=[Depends(upload_limit)]
+)
 def set_attachment(assignment_id: UUID, file: FileUpload, user: LecturerDep) -> dict:
     return assignment_service.set_attachment(user, assignment_id, file.file, file.filename)
 
@@ -86,6 +89,7 @@ def download_attachment(assignment_id: UUID, user: CurrentUserDep) -> dict:
     "/{assignment_id}/submissions",
     response_model=SubmissionOut,
     status_code=201,
+    dependencies=[Depends(upload_limit)],
     responses={200: {"description": "An existing submission was replaced"}},
 )
 def submit_assignment(assignment_id: UUID, file: FileUpload, user: StudentDep, response: Response) -> dict:
