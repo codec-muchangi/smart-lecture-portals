@@ -1,5 +1,6 @@
 import logging
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -61,13 +62,34 @@ class ServiceUnavailable(AppError):
     status_code, code = 503, "SERVICE_UNAVAILABLE"
 
 
-def _body(code: str, message: str, details: dict | None = None) -> dict:
+def body_for(code: str, message: str, details: dict | None = None) -> dict:
     return {"code": code, "message": message, "details": details or {}}
+
+
+_body = body_for
+security_log = logging.getLogger("app.security")
+SECURITY_STATUSES = {401, 403, 429}
+
+
+def _note_security_event(request: Request, status: int, code: str) -> None:
+    """One WARNING line per refused request (who, where, why), never the headers, body or query string."""
+    if status in SECURITY_STATUSES:
+        client = request.client.host if request.client else "unknown"
+        security_log.warning(
+            "refused %s %s -> %s %s client=%s request_id=%s",
+            request.method,
+            request.url.path,
+            status,
+            code,
+            client,
+            getattr(request.state, "request_id", "-"),
+        )
 
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
-    async def app_error(_: Request, exc: AppError):
+    async def app_error(request: Request, exc: AppError):
+        _note_security_event(request, exc.status_code, exc.code)
         headers = {"Retry-After": str(exc.details["retry_after"])} if isinstance(exc, RateLimited) else None
         return JSONResponse(
             _body(exc.code, exc.message, exc.details), status_code=exc.status_code, headers=headers
@@ -79,11 +101,31 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(_body("VALIDATION_ERROR", "Invalid request", fields), status_code=422)
 
     @app.exception_handler(StarletteHTTPException)
-    async def http_error(_: Request, exc: StarletteHTTPException):
-        code = {401: "UNAUTHENTICATED", 403: "FORBIDDEN", 404: "NOT_FOUND"}.get(exc.status_code, "HTTP_ERROR")
-        return JSONResponse(_body(code, str(exc.detail)), status_code=exc.status_code)
+    async def http_error(request: Request, exc: StarletteHTTPException):
+        code = {
+            401: "UNAUTHENTICATED",
+            403: "FORBIDDEN",
+            404: "NOT_FOUND",
+            405: "METHOD_NOT_ALLOWED",
+            413: "PAYLOAD_TOO_LARGE",
+            429: "RATE_LIMITED",
+        }.get(exc.status_code, "HTTP_ERROR")
+        _note_security_event(request, exc.status_code, code)
+        return JSONResponse(_body(code, str(exc.detail)), status_code=exc.status_code, headers=exc.headers)
 
-    @app.exception_handler(Exception)
-    async def unexpected(_: Request, exc: Exception):
-        log.exception("Unhandled error")
-        return JSONResponse(_body("INTERNAL_ERROR", "Something went wrong"), status_code=500)
+    @app.exception_handler(httpx.TransportError)
+    async def upstream_unreachable(request: Request, exc: httpx.TransportError):
+        """Supabase (database, auth or storage) is unreachable: tell the client to retry (NFR-REL-02)."""
+        log.error(
+            "Upstream unreachable: %s [request_id=%s]",
+            type(exc).__name__,
+            getattr(request.state, "request_id", "-"),
+        )
+        return JSONResponse(
+            _body("SERVICE_UNAVAILABLE", "The service is temporarily unavailable. Please try again."),
+            status_code=503,
+            headers={"Retry-After": "5"},
+        )
+
+    # Unexpected exceptions are answered by RequestContextMiddleware (app/core/middleware.py) so that the 500
+    # also carries the security headers, the CORS headers and the request id.

@@ -12,7 +12,7 @@ Two halves:
 import logging
 from uuid import UUID
 
-from app.core.errors import NotFound
+from app.core.errors import NotFound, ValidationFailed
 from app.repositories import notification_repository as repo
 from app.schemas.common import CurrentUser
 from app.utils import clock
@@ -65,3 +65,15 @@ def notify_users(user_ids: list[str], type_: str, title: str, message: str, link
     except Exception:
         log.exception("Could not create %s notifications for %d user(s)", type_, len(user_ids))
         return 0
+
+
+# ---------- retention ----------
+MIN_RETENTION_DAYS = 30
+
+
+def purge_read_notifications(days: int = 90) -> int:
+    """Retention rule (Phase 9): remove notifications that were read more than `days` days ago.
+    Unread notifications are never removed. Run from scripts/purge_old_notifications.py."""
+    if days < MIN_RETENTION_DAYS:
+        raise ValidationFailed(f"Keep notifications for at least {MIN_RETENTION_DAYS} days")
+    return repo.purge_read(days)

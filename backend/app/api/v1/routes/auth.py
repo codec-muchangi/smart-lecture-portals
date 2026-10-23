@@ -18,6 +18,14 @@ reset_limit = rate_limit(
 )
 
 
+password_limit = rate_limit(
+    "password-change",
+    lambda: get_settings().password_change_rate_limit,
+    lambda: get_settings().password_change_rate_window_seconds,
+    by="user",
+)
+
+
 @router.post("/login", response_model=LoginResponse, dependencies=[Depends(login_limit)])
 def login(body: LoginRequest) -> dict:
     return auth_service.login(body.email, body.password)
@@ -29,7 +37,7 @@ def logout(user: CurrentUserDep, token: Annotated[str, Depends(get_access_token)
     return Response(status_code=204)
 
 
-@router.post("/password/change", status_code=204)
+@router.post("/password/change", status_code=204, dependencies=[Depends(password_limit)])
 def change_password(body: PasswordChangeRequest, user: CurrentUserDep) -> Response:
     auth_service.change_password(user, body.current_password, body.new_password)
     return Response(status_code=204)

@@ -6,12 +6,12 @@ ROOT = Path(__file__).resolve().parent.parent
 FEATURES = ["courses", "materials", "assignments", "attendance", "marks", "announcements", "notifications", "timetable"]
 REQUIRED = [
     "README.md", ".gitignore", "docker-compose.yml",
-    "docs/SRS.md", "docs/API.md", "docs/ERD.md", "docs/FRONTEND.md", "docs/PHASE4_BACKEND.md", "docs/PHASE5_BACKEND.md", "docs/PHASE6_BACKEND.md", "docs/PHASE7_BACKEND.md", "docs/PHASE8_BACKEND.md",
-    "db/migrations/0001_init_schema.sql", "db/migrations/0002_views.sql", "db/migrations/0003_auth_integrity.sql", "db/migrations/0004_courses_enrollment.sql", "db/migrations/0005_materials.sql", "db/migrations/0006_assignments_submissions.sql", "db/migrations/0007_grading_marks.sql", "db/migrations/0008_attendance.sql", "db/migrations/0009_announcements_notifications.sql", "db/migrations/0010_timetable_reporting.sql",
+    "docs/SRS.md", "docs/API.md", "docs/ERD.md", "docs/FRONTEND.md", "docs/PHASE4_BACKEND.md", "docs/PHASE5_BACKEND.md", "docs/PHASE6_BACKEND.md", "docs/PHASE7_BACKEND.md", "docs/PHASE8_BACKEND.md", "docs/PHASE9_BACKEND.md",
+    "db/migrations/0001_init_schema.sql", "db/migrations/0002_views.sql", "db/migrations/0003_auth_integrity.sql", "db/migrations/0004_courses_enrollment.sql", "db/migrations/0005_materials.sql", "db/migrations/0006_assignments_submissions.sql", "db/migrations/0007_grading_marks.sql", "db/migrations/0008_attendance.sql", "db/migrations/0009_announcements_notifications.sql", "db/migrations/0010_timetable_reporting.sql", "db/migrations/0011_hardening.sql",
     "scripts/verify_database.py",
-    "scripts/purge_deleted_materials.py",
+    "scripts/purge_deleted_materials.py", "scripts/purge_old_notifications.py",
     "scripts/create_user.py", "scripts/manage_academic.py", "db/seed/seed_demo.sql",
-    ".github/workflows/ci.yml", ".github/workflows/codeql.yml", ".github/workflows/deploy.yml",
+    ".github/workflows/ci.yml", ".github/workflows/codeql.yml", ".github/workflows/deploy.yml", ".github/workflows/security-audit.yml",
     ".github/dependabot.yml", ".github/pull_request_template.md",
     "backend/requirements.txt", "backend/requirements-dev.txt", "backend/.env.example", "backend/pyproject.toml",
     "backend/app/main.py", "backend/tests",

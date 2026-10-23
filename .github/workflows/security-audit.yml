@@ -1,0 +1,45 @@
+name: Dependency audit
+
+# SRS section 12: "keep dependencies updated and scan for known vulnerabilities".
+# Kept out of the required "CI passed" gate on purpose: a newly published advisory must not block an unrelated
+# pull request. It runs weekly, on demand, and whenever a dependency file changes, and fails when a known
+# vulnerability is found so the failure is visible; Dependabot raises the fix.
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/requirements*.txt"
+      - "frontend/package*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python packages (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt pip-audit
+      - name: Audit the installed packages
+        run: pip-audit
+
+  node:
+    name: Node packages (npm audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Audit production dependencies (high and critical)
+        run: npm audit --omit=dev --audit-level=high

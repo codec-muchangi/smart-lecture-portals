@@ -2,13 +2,16 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.core.limits import report_limit
 from app.core.security import LecturerDep
 from app.schemas.report import AttendanceReport, PerformanceReport, SubmissionsReport
 from app.services import report_service
 
-router = APIRouter(prefix="/courses/{course_id}/reports", tags=["reports"])
+router = APIRouter(
+    prefix="/courses/{course_id}/reports", tags=["reports"], dependencies=[Depends(report_limit)]
+)
 
 
 @router.get("/attendance", response_model=AttendanceReport)

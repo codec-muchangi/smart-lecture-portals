@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from supabase import Client, create_client
+from supabase.lib.client_options import ClientOptions
 
 from app.core.config import get_settings
 
@@ -12,7 +13,10 @@ def get_supabase() -> Client:
     Never call sign_in_* on this shared client: that would attach a user session to it.
     """
     s = get_settings()
-    return create_client(s.supabase_url, s.supabase_service_role_key)
+    options = ClientOptions(
+        postgrest_client_timeout=s.database_timeout_seconds, storage_client_timeout=s.storage_timeout_seconds
+    )
+    return create_client(s.supabase_url, s.supabase_service_role_key, options=options)
 
 
 def get_anon_client() -> Client:

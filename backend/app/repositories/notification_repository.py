@@ -99,3 +99,9 @@ def insert_many(user_ids: list[str], type_: str, title: str, message: str, link:
         ]
         n += len(_table().insert(rows).execute().data)
     return n
+
+
+def purge_read(days: int) -> int:
+    """Delete READ notifications older than `days` (database function, audited). Returns how many."""
+    res = get_supabase().rpc("purge_read_notifications", {"p_days": days}).execute()
+    return int(res.data or 0)
