@@ -430,7 +430,58 @@ function AttendancePanel({ attendance, query }) {
     </section>
   )
 }
+function AnnouncementsPanel({ announcements, query }) {
+  if (query.isLoading) {
+    return (
+      <section className="slpc-card" aria-label="Announcements">
+        <p className="slpc-muted">Loading announcements…</p>
+      </section>
+    )
+  }
 
+  if (query.isError) {
+    return (
+      <section className="slpc-card" aria-label="Announcements">
+        <p className="slpc-muted">We could not load announcements right now.</p>
+        <button type="button" className="slpc-action" onClick={() => query.refetch()}>
+          Try again
+        </button>
+      </section>
+    )
+  }
+
+  if (announcements.length === 0) {
+    return (
+      <section className="slpc-card" aria-label="Announcements">
+        <h2 className="slpc-h2">Announcements</h2>
+        <p className="slpc-muted">No announcements have been published for this course yet.</p>
+        <Link className="slpc-action" to="/student/announcements">
+          View all announcements
+        </Link>
+      </section>
+    )
+  }
+
+  return (
+    <section className="slpc-card" aria-label="Announcements">
+      <h2 className="slpc-h2">Announcements</h2>
+      <ul>
+        {announcements.map((item) => (
+          <li key={item.id}>
+            <strong>{item.title}</strong>
+            <p className="slpc-muted">
+              {item.published_at ? new Date(item.published_at).toLocaleDateString() : ''}
+            </p>
+            <p>{item.body}</p>
+          </li>
+        ))}
+      </ul>
+      <Link className="slpc-action" to="/student/announcements">
+        View all announcements
+      </Link>
+    </section>
+  )
+}
 function StatCard({ label, icon, tone, children, foot }) {
   return (
     <div className="slpc-card slpc-stat">
@@ -994,6 +1045,10 @@ function CourseDetail({ courseId }) {
     queryKey: ['course-attendance', courseId],
     queryFn: () => api(`/courses/${courseId}/attendance/me`),
   })
+    const announcementsQuery = useQuery({
+    queryKey: ['course-announcements', courseId],
+    queryFn: () => api(`/courses/${courseId}/announcements?page_size=5`),
+  })
   const marksQuery = useQuery({
     queryKey: ['course-marks', courseId],
     queryFn: () => api(`/courses/${courseId}/marks/me`),
@@ -1008,6 +1063,7 @@ function CourseDetail({ courseId }) {
   )
   const marks = marksQuery.data ?? null
   const attendance = attendanceQuery.data ?? null
+  const announcements = useMemo(() => toList(announcementsQuery.data), [announcementsQuery.data])
 
   const pendingCount = assignments.filter((item) => item.state === 'open' && !item.my_submission).length
   const percent = marks?.totals?.weighted_percent
@@ -1214,11 +1270,7 @@ function CourseDetail({ courseId }) {
           )}
           {tab === 'attendance' && <AttendancePanel attendance={attendance} query={attendanceQuery} />}
           {tab === 'marks' && <MarksPanel marks={marks} query={marksQuery} />}
-          {tab === 'announcements' && (
-            <PhasePanel icon="campaign" title="Announcements" phase="Phase 7">
-              Course bulletins and notices from your lecturers will appear here once announcements go live.
-            </PhasePanel>
-          )}
+          {tab === 'announcements' && <AnnouncementsPanel announcements={announcements} query={announcementsQuery} />}
           {tab === 'timetable' && (
             <PhasePanel icon="event_note" title="Timetable" phase="Phase 8">
               This course&apos;s weekly schedule and lecture rooms will appear here once the timetable goes live.

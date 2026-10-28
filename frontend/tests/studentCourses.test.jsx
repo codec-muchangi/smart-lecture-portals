@@ -219,7 +219,6 @@ describe('course detail', () => {
   })
 
   test.each([
-    ['announcements', /Coming in Phase 7/],
     ['timetable', /Coming in Phase 8/],
   ])('%s tab says plainly it is not live yet', async (tab, text) => {
     routes()
@@ -285,6 +284,31 @@ test('attendance tab offers a retry when the server fails', async () => {
   renderAt('/student/courses/c1?tab=attendance')
   expect(await screen.findByText(/could not load your attendance/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
+})
+
+test('announcements tab lists published notices', async () => {
+  routes({
+    '/courses/c1/announcements?page_size=5': {
+      items: [
+        { id: 'n1', course_id: 'c1', title: 'Welcome to class', body: 'Read the outline.', published: true, published_at: '2026-10-28T09:00:00Z' },
+      ],
+    },
+  })
+  renderAt('/student/courses/c1?tab=announcements')
+  expect(await screen.findByText('Welcome to class')).toBeInTheDocument()
+  expect(screen.getByText('Read the outline.')).toBeInTheDocument()
+})
+
+test('announcements tab shows an empty state', async () => {
+  routes({ '/courses/c1/announcements?page_size=5': { items: [] } })
+  renderAt('/student/courses/c1?tab=announcements')
+  expect(await screen.findByText(/No announcements have been published/)).toBeInTheDocument()
+})
+
+test('announcements tab offers a retry when the server fails', async () => {
+  routes({ '/courses/c1/announcements?page_size=5': new Error('boom') })
+  renderAt('/student/courses/c1?tab=announcements')
+  expect(await screen.findByText(/could not load announcements/)).toBeInTheDocument()
 })
 
   test('explains a course that is not found', async () => {
