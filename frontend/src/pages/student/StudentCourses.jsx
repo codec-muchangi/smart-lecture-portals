@@ -374,6 +374,62 @@ function PhasePanel({ icon, title, phase, children }) {
     </section>
   )
 }
+function AttendancePanel({ attendance, query }) {
+  if (query.isLoading) {
+    return (
+      <section className="slpc-card" aria-label="Attendance">
+        <p className="slpc-muted">Loading attendance…</p>
+      </section>
+    )
+  }
+
+  if (query.isError) {
+    return (
+      <section className="slpc-card" aria-label="Attendance">
+        <p className="slpc-muted">We could not load your attendance right now.</p>
+        <button type="button" className="slpc-action" onClick={() => query.refetch()}>
+          Try again
+        </button>
+      </section>
+    )
+  }
+
+  const summary = attendance?.summary
+
+  if (!summary || summary.counted_sessions === 0) {
+    return (
+      <section className="slpc-card" aria-label="Attendance">
+        <h2 className="slpc-h2">Attendance</h2>
+        <p className="slpc-muted">
+          No attendance has been recorded for this course yet. It will appear here after your lecturer marks a session.
+        </p>
+                <Link className="slpc-action" to="/student/attendance">
+          View full attendance
+        </Link>
+      </section>
+    )
+  }
+
+  const pct = summary.attendance_pct
+
+  return (
+    <section className="slpc-card" aria-label="Attendance">
+      <h2 className="slpc-h2">Attendance</h2>
+      <p className="slpc-muted">
+        {pct == null ? '—' : `${pct}%`} attended across {summary.counted_sessions} counted sessions
+      </p>
+      <ul>
+        <li>Present: {summary.present}</li>
+        <li>Late: {summary.late}</li>
+        <li>Excused: {summary.excused}</li>
+        <li>Absent: {summary.absent}</li>
+      </ul>
+              <Link className="slpc-action" to="/student/attendance">
+          View full attendance
+        </Link>
+    </section>
+  )
+}
 
 function StatCard({ label, icon, tone, children, foot }) {
   return (
@@ -934,6 +990,10 @@ function CourseDetail({ courseId }) {
     queryKey: ['course-assignments', courseId],
     queryFn: () => api(`/courses/${courseId}/assignments?page_size=100`),
   })
+  const attendanceQuery = useQuery({
+    queryKey: ['course-attendance', courseId],
+    queryFn: () => api(`/courses/${courseId}/attendance/me`),
+  })
   const marksQuery = useQuery({
     queryKey: ['course-marks', courseId],
     queryFn: () => api(`/courses/${courseId}/marks/me`),
@@ -947,6 +1007,7 @@ function CourseDetail({ courseId }) {
     [assignmentsQuery.data],
   )
   const marks = marksQuery.data ?? null
+  const attendance = attendanceQuery.data ?? null
 
   const pendingCount = assignments.filter((item) => item.state === 'open' && !item.my_submission).length
   const percent = marks?.totals?.weighted_percent
@@ -1151,11 +1212,7 @@ function CourseDetail({ courseId }) {
               onUpload={setActiveTask}
             />
           )}
-          {tab === 'attendance' && (
-            <PhasePanel icon="how_to_reg" title="Attendance" phase="Phase 6">
-              Your verified attendance for this course will appear here once attendance tracking goes live.
-            </PhasePanel>
-          )}
+          {tab === 'attendance' && <AttendancePanel attendance={attendance} query={attendanceQuery} />}
           {tab === 'marks' && <MarksPanel marks={marks} query={marksQuery} />}
           {tab === 'announcements' && (
             <PhasePanel icon="campaign" title="Announcements" phase="Phase 7">

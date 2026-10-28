@@ -219,7 +219,6 @@ describe('course detail', () => {
   })
 
   test.each([
-    ['attendance', /Coming in Phase 6/],
     ['announcements', /Coming in Phase 7/],
     ['timetable', /Coming in Phase 8/],
   ])('%s tab says plainly it is not live yet', async (tab, text) => {
@@ -248,6 +247,45 @@ describe('course detail', () => {
     expect(await screen.findByText('Curated Files')).toBeInTheDocument()
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
+
+  test('attendance tab shows an empty state before any session is marked', async () => {
+  routes({
+    '/courses/c1/attendance/me': {
+      course_id: 'c1',
+      items: [],
+      summary: {
+        present: 0, absent: 0, late: 0, excused: 0,
+        attended: 0, counted_sessions: 0, attendance_pct: null,
+      },
+    },
+  })
+  renderAt('/student/courses/c1?tab=attendance')
+  expect(await screen.findByText(/No attendance has been recorded/)).toBeInTheDocument()
+})
+
+test('attendance tab shows the percentage and tallies from the server', async () => {
+  routes({
+    '/courses/c1/attendance/me': {
+      course_id: 'c1',
+      items: [],
+      summary: {
+        present: 1, absent: 0, late: 0, excused: 0,
+        attended: 1, counted_sessions: 1, attendance_pct: 100,
+      },
+    },
+  })
+  renderAt('/student/courses/c1?tab=attendance')
+  expect(await screen.findByText(/100% attended across 1 counted sessions/)).toBeInTheDocument()
+  expect(screen.getByText('Present: 1')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /View full attendance/ })).toBeInTheDocument()
+})
+
+test('attendance tab offers a retry when the server fails', async () => {
+  routes({ '/courses/c1/attendance/me': new Error('boom') })
+  renderAt('/student/courses/c1?tab=attendance')
+  expect(await screen.findByText(/could not load your attendance/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
+})
 
   test('explains a course that is not found', async () => {
     routes({ '/courses/c9': Object.assign(new Error('Not found'), { status: 404 }) })
