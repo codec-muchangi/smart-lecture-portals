@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../services/apiClient.js'
 import { supabase } from '../../services/supabase.js'
 import { useAuth } from '../../app/AuthContext.jsx'
-import { COURSE_STYLES, ErrorCard, PhasePanel, Skeleton, initials, renderIcon, useCourseFonts } from '../../components/courseKit.jsx'
+import { COURSE_STYLES, ErrorCard, Skeleton, initials, renderIcon, useCourseFonts } from '../../components/courseKit.jsx'
 import { DISPLAY_DEFAULTS, SIZES, applyDisplay, readDisplay, saveDisplay } from '../../utils/display.js'
 import { sentenceCase } from '../../utils/format.js'
 import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, validateProfile, without } from '../../utils/settingsHelpers.js'
@@ -657,9 +657,17 @@ export default function StudentSettings() {
               <SecuritySection me={me} />
 
               <section className="slpz-section" id="set-notifications" aria-label="Notification preferences" style={{ padding: 0 }}>
-                <PhasePanel icon="notifications_active" title="Notification preferences are not switched on yet" phase="Phase 7">
-                  Choosing which alerts you receive (new assignments, released marks, materials, announcements) arrives with notifications. Until then nothing here can be saved, so no switches are shown.
-                </PhasePanel>
+                <div className="slpc-card">
+  <h2 className="slpc-h2">Your notifications</h2>
+  <p className="slpc-muted">
+    You receive an alert whenever a lecturer publishes an announcement for a course you are
+    enrolled in. Alerts appear under the bell icon at the top of the page, where you can mark
+    them as read.
+  </p>
+  <p className="slpc-muted">
+    Choosing which alerts to receive is not available in this version, so there are no switches here.
+  </p>
+</div>
               </section>
 
               <DisplaySection />
