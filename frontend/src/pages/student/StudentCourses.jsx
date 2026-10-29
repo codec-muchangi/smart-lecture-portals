@@ -364,16 +364,7 @@ function Catalog() {
 
 /* ------------------------------------------------------------ detail: panels */
 
-function PhasePanel({ icon, title, phase, children }) {
-  return (
-    <section className="slpc-card slpc-phase" aria-label={title}>
-      <span className="slpc-phase-icon">{renderIcon(icon, 28)}</span>
-      <h2 className="slpc-h2">{title}</h2>
-      <p className="slpc-muted">{children}</p>
-      <span className="slpc-pill">Coming in {phase}</span>
-    </section>
-  )
-}
+
 function AttendancePanel({ attendance, query }) {
   if (query.isLoading) {
     return (
@@ -478,6 +469,66 @@ function AnnouncementsPanel({ announcements, query }) {
       </ul>
       <Link className="slpc-action" to="/student/announcements">
         View all announcements
+      </Link>
+    </section>
+  )
+}
+
+function TimetablePanel({ classes, query }) {
+  if (query.isLoading) {
+    return (
+      <section className="slpc-card" aria-label="Timetable">
+        <p className="slpc-muted">Loading timetable…</p>
+      </section>
+    )
+  }
+
+  if (query.isError) {
+    return (
+      <section className="slpc-card" aria-label="Timetable">
+        <p className="slpc-muted">We could not load the timetable right now.</p>
+        <button type="button" className="slpc-action" onClick={() => query.refetch()}>
+          Try again
+        </button>
+      </section>
+    )
+  }
+
+  if (classes.length === 0) {
+    return (
+      <section className="slpc-card" aria-label="Timetable">
+        <h2 className="slpc-h2">Timetable</h2>
+        <p className="slpc-muted">No classes are scheduled for this course in the next 7 days.</p>
+        <Link className="slpc-action" to="/student/timetable">
+          View full timetable
+        </Link>
+      </section>
+    )
+  }
+
+  return (
+    <section className="slpc-card" aria-label="Timetable">
+      <h2 className="slpc-h2">Timetable</h2>
+      <p className="slpc-muted">Classes for this course in the next 7 days.</p>
+      <ul>
+        {classes.map((entry) => (
+          <li key={`${entry.entry_id}-${entry.date}`}>
+            <strong>
+              {new Date(`${entry.date}T00:00:00`).toLocaleDateString(undefined, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'short',
+              })}
+            </strong>
+            {' '}
+            {String(entry.start_time).slice(0, 5)} – {String(entry.end_time).slice(0, 5)}
+            {entry.room ? ` · ${entry.room}` : ''}
+            {entry.notes ? ` · ${entry.notes}` : ''}
+          </li>
+        ))}
+      </ul>
+      <Link className="slpc-action" to="/student/timetable">
+        View full timetable
       </Link>
     </section>
   )
@@ -1049,6 +1100,11 @@ function CourseDetail({ courseId }) {
     queryKey: ['course-announcements', courseId],
     queryFn: () => api(`/courses/${courseId}/announcements?page_size=5`),
   })
+
+    const timetableQuery = useQuery({
+    queryKey: ['timetable', 'week'],
+    queryFn: () => api('/timetable'),
+  })
   const marksQuery = useQuery({
     queryKey: ['course-marks', courseId],
     queryFn: () => api(`/courses/${courseId}/marks/me`),
@@ -1064,6 +1120,10 @@ function CourseDetail({ courseId }) {
   const marks = marksQuery.data ?? null
   const attendance = attendanceQuery.data ?? null
   const announcements = useMemo(() => toList(announcementsQuery.data), [announcementsQuery.data])
+    const courseClasses = useMemo(
+    () => (timetableQuery.data?.items ?? []).filter((entry) => entry.course_id === courseId),
+    [timetableQuery.data, courseId],
+  )
 
   const pendingCount = assignments.filter((item) => item.state === 'open' && !item.my_submission).length
   const percent = marks?.totals?.weighted_percent
@@ -1271,11 +1331,7 @@ function CourseDetail({ courseId }) {
           {tab === 'attendance' && <AttendancePanel attendance={attendance} query={attendanceQuery} />}
           {tab === 'marks' && <MarksPanel marks={marks} query={marksQuery} />}
           {tab === 'announcements' && <AnnouncementsPanel announcements={announcements} query={announcementsQuery} />}
-          {tab === 'timetable' && (
-            <PhasePanel icon="event_note" title="Timetable" phase="Phase 8">
-              This course&apos;s weekly schedule and lecture rooms will appear here once the timetable goes live.
-            </PhasePanel>
-          )}
+          {tab === 'timetable' && <TimetablePanel classes={courseClasses} query={timetableQuery} />}
         </div>
       </div>
 

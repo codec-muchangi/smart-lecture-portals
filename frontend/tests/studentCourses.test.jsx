@@ -218,13 +218,27 @@ describe('course detail', () => {
     expect(screen.getByText(/Weight marked/)).toBeInTheDocument()
   })
 
-  test.each([
-    ['timetable', /Coming in Phase 8/],
-  ])('%s tab says plainly it is not live yet', async (tab, text) => {
-    routes()
-    renderAt(`/student/courses/c1?tab=${tab}`)
-    expect(await screen.findByText(text)).toBeInTheDocument()
+  test('timetable tab lists this course classes', async () => {
+  routes({
+    '/timetable': {
+      date_from: '2026-10-29',
+      date_to: '2026-11-04',
+      items: [
+        { entry_id: 't1', course_id: 'c1', course_code: 'CS401', course_name: 'Advanced', date: '2026-10-29', day_of_week: 4, start_time: '14:00:00', end_time: '16:00:00', room: 'Room 12', notes: 'Tutorial', recurring: true },
+        { entry_id: 't2', course_id: 'other', course_code: 'CS999', course_name: 'Other', date: '2026-10-30', day_of_week: 5, start_time: '08:00:00', end_time: '09:00:00', room: 'Hall', notes: null, recurring: true },
+      ],
+    },
   })
+  renderAt('/student/courses/c1?tab=timetable')
+  expect(await screen.findByText(/14:00 – 16:00/)).toBeInTheDocument()
+  expect(screen.queryByText(/Hall/)).not.toBeInTheDocument()
+})
+
+test('timetable tab shows an empty state', async () => {
+  routes({ '/timetable': { date_from: '2026-10-29', date_to: '2026-11-04', items: [] } })
+  renderAt('/student/courses/c1?tab=timetable')
+  expect(await screen.findByText(/No classes are scheduled/)).toBeInTheDocument()
+})
 
   test('shows empty states for a course with nothing published', async () => {
     routes({
