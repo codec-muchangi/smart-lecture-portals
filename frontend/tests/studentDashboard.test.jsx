@@ -47,6 +47,8 @@ function routes(overrides = {}) {
     '/courses/c1/marks/me': { items: [], totals: { weighted_percent: 90 } },
     '/courses/c2/marks/me': { items: [], totals: { weighted_percent: 80 } },
     '/notifications': Object.assign(new Error('Not found'), { status: 404 }),
+    '/timetable': { date_from: '2026-10-30', date_to: '2026-11-05', items: [] },
+    '/dashboard': { attendance_summary: [] },
     ...overrides,
   }
   apiMock.mockImplementation(async (path) => {
@@ -107,13 +109,82 @@ test('lists open assignments by deadline with the right urgency and actions', as
   expect(screen.queryByText('Old closed coursework')).not.toBeInTheDocument()
 })
 
-test('says plainly that attendance, timetable and announcements are not live yet', async () => {
+test('says plainly that announcements and notifications are not live yet', async () => {
   routes()
   renderPage()
-  expect(await screen.findByText(/once the timetable \(Phase 8\) goes live/i)).toBeInTheDocument()
-  expect(screen.getByText(/attendance \(Phase 6\) goes live/i)).toBeInTheDocument()
-  expect(screen.getByText(/once they go live \(Phase 7\)/i)).toBeInTheDocument()
   expect(await screen.findByText(/once notifications go live \(Phase 7\)/i)).toBeInTheDocument()
+  expect(screen.getByText(/once they go live \(Phase 7\)/i)).toBeInTheDocument()
+})
+
+test('shows only todays classes from the timetable', async () => {
+  const d = new Date()
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  routes({
+    '/timetable': {
+      date_from: today,
+      date_to: today,
+      items: [
+        { entry_id: 't1', course_id: 'c1', course_code: 'CS402', course_name: 'Distributed Systems', date: today, day_of_week: 1, start_time: '10:00:00', end_time: '12:00:00', room: 'Lab 3', notes: null, recurring: true },
+        { entry_id: 't2', course_id: 'c2', course_code: 'CS308', course_name: 'Database Engineering', date: '2000-01-01', day_of_week: 6, start_time: '08:00:00', end_time: '09:00:00', room: 'Hall 9', notes: null, recurring: true },
+      ],
+    },
+  })
+  renderPage()
+  expect(await screen.findByText(/Lab 3/)).toBeInTheDocument()
+  expect(screen.getByText(/10:00/)).toBeInTheDocument()
+  expect(screen.queryByText(/Hall 9/)).not.toBeInTheDocument()
+})
+
+test('says there are no classes today when the timetable is empty', async () => {
+  routes()
+  renderPage()
+  expect(await screen.findByText(/No classes are scheduled for today/)).toBeInTheDocument()
+})
+
+test('says classes could not be loaded when the timetable fails', async () => {
+  routes({ '/timetable': new Error('boom') })
+  renderPage()
+  expect(await screen.findByText(/could not load classes for today/)).toBeInTheDocument()
+})
+
+test('attendance gauge shows the pooled percentage and each course', async () => {
+  routes({
+    '/dashboard': {
+      attendance_summary: [
+        { course_id: 'c1', course_code: 'CS402', present: 3, absent: 1, late: 0, excused: 0, attended: 3, counted_sessions: 4, attendance_pct: 75 },
+        { course_id: 'c2', course_code: 'CS308', present: 0, absent: 0, late: 0, excused: 0, attended: 0, counted_sessions: 0, attendance_pct: null },
+      ],
+    },
+  })
+  renderPage()
+  expect(await screen.findByText(/3 of 4 counted sessions attended/)).toBeInTheDocument()
+  expect(screen.getByText('Good standing')).toBeInTheDocument()
+  expect(screen.getAllByText('75%').length).toBeGreaterThan(0)
+})
+
+test('attendance gauge warns when below the 75% minimum', async () => {
+  routes({
+    '/dashboard': {
+      attendance_summary: [
+        { course_id: 'c1', course_code: 'CS402', present: 1, absent: 3, late: 0, excused: 0, attended: 1, counted_sessions: 4, attendance_pct: 25 },
+      ],
+    },
+  })
+  renderPage()
+  expect(await screen.findByText('Below the 75% minimum')).toBeInTheDocument()
+})
+
+test('attendance gauge never shows 0% when nothing is recorded', async () => {
+  routes()
+  renderPage()
+  expect(await screen.findByText('No sessions recorded yet')).toBeInTheDocument()
+  expect(screen.queryByText('0%')).not.toBeInTheDocument()
+})
+
+test('attendance gauge says unavailable when the dashboard fails', async () => {
+  routes({ '/dashboard': new Error('boom') })
+  renderPage()
+  expect(await screen.findByText('Attendance unavailable')).toBeInTheDocument()
 })
 
 test('lists notifications when the endpoint exists', async () => {
