@@ -650,13 +650,23 @@ function OverviewPanel({ data, now, selectTab }) {
           <span className="slpc-stat-unit">Items Active</span>
         </StatCard>
 
-        <StatCard
+                <StatCard
           label="Verified Attendance"
           icon="done_all"
           tone="ok"
-          foot={<span>Available when attendance (Phase 6) goes live</span>}
+          foot={
+            <span>
+              {data.attendance?.summary?.counted_sessions
+                ? `Sessions counted: ${data.attendance.summary.counted_sessions}`
+                : 'No sessions recorded yet'}
+            </span>
+          }
         >
-          <span className="slpc-stat-value">—</span>
+          <span className="slpc-stat-value">
+            {data.attendance?.summary?.attendance_pct == null
+              ? '—'
+              : `${data.attendance.summary.attendance_pct}%`}
+          </span>
         </StatCard>
 
         <StatCard
@@ -1313,7 +1323,7 @@ function CourseDetail({ courseId }) {
         <div role="tabpanel" id={`slpc-panel-${tab}`} aria-labelledby={`slpc-tab-${tab}`} tabIndex={0} className="slpc-panel-wrap">
           {tab === 'overview' && (
             <OverviewPanel
-              data={{ materials, assignments, marks, materialsQuery, assignmentsQuery, marksQuery }}
+              data={{ materials, assignments, marks, attendance, materialsQuery, assignmentsQuery, marksQuery }}
               now={now}
               selectTab={selectTab}
             />

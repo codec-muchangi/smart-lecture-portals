@@ -12,3 +12,7 @@ from (values
     ('CIT 3254', 3, '11:00', '13:00', 'Room 7',  'Lecture')
 ) as v(code, dow, st, et, room, notes)
 join courses c on c.course_code = v.code;
+insert into timetable_entries (course_id, day_of_week, start_time, end_time, room, notes, recurrence)
+select id, 5, '10:00'::time, '12:00'::time, 'Lab 3', 'Practical',
+        '{"from":"2026-09-01","until":"2026-12-18"}'::jsonb
+from courses where course_code = 'CIT 3255';

@@ -410,6 +410,23 @@ function StudentDashboard() {
     enabled: coursesQuery.isSuccess && courses.length > 0,
   })
 
+    const timetableQuery = useQuery({
+    queryKey: ['timetable', 'week'],
+    queryFn: () => api('/timetable'),
+  })
+  const localToday = new Date()
+  const todayIso = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, '0')}-${String(localToday.getDate()).padStart(2, '0')}`
+  const todayClasses = (timetableQuery.data?.items ?? []).filter((entry) => entry.date === todayIso)
+
+    const dashboardQuery = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => api('/dashboard'),
+  })
+  const attendanceRows = dashboardQuery.data?.attendance_summary ?? []
+  const attendanceByCourse = Object.fromEntries(attendanceRows.map((row) => [row.course_id, row]))
+  const totalCounted = attendanceRows.reduce((sum, row) => sum + row.counted_sessions, 0)
+  const totalAttended = attendanceRows.reduce((sum, row) => sum + row.attended, 0)
+  const overallPct = totalCounted > 0 ? Math.round((totalAttended / totalCounted) * 1000) / 10 : null
   // Not live until Phase 7; a failure here must never break the page.
   const notificationsQuery = useQuery({
     queryKey: ['notifications'],
@@ -692,7 +709,21 @@ function StudentDashboard() {
               </div>
               <span className="slpt-round">{renderIcon('calendar_today', 18)}</span>
             </div>
-            <p className="slpt-empty">Your classes for today will appear here once the timetable (Phase 8) goes live.</p>
+          {timetableQuery.isLoading && <p className="slpt-empty">Loading classes for today…</p>}
+{timetableQuery.isError && <p className="slpt-empty">We could not load classes for today right now.</p>}
+{timetableQuery.isSuccess && todayClasses.length === 0 && (
+  <p className="slpt-empty">No classes are scheduled for today.</p>
+)}
+{todayClasses.length > 0 && (
+  <ul>
+    {todayClasses.map((entry) => (
+      <li key={`${entry.entry_id}-${entry.date}`}>
+        <strong>{String(entry.start_time).slice(0, 5)} – {String(entry.end_time).slice(0, 5)}</strong>{' '}
+        {entry.course_code}{entry.room ? ` · ${entry.room}` : ''}
+      </li>
+    ))}
+  </ul>
+)}  
           </section>
 
           <section className="slpt-card slpt-panel" aria-labelledby="slpt-attendance-title">
@@ -706,32 +737,71 @@ function StudentDashboard() {
               <span className="slpt-pill slpt-mono">&gt; 75% Req.</span>
             </div>
             <div className="slpt-gauge">
-              <div className="slpt-ring" aria-hidden="true">
-                <svg viewBox="0 0 36 36">
-                  <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="3.5" className="slpt-ring-track" />
-                </svg>
-                <span className="slpt-mono">—</span>
-              </div>
-              <div>
-                <p className="slpt-gauge-title">Awaiting attendance data</p>
-                <p className="slpt-muted">Available when attendance (Phase 6) goes live</p>
-              </div>
-            </div>
-            {courses.length > 0 && (
-              <ul className="slpt-bars">
-                {courses.map((course) => (
-                  <li key={course.id}>
-                    <div className="slpt-bar-row">
-                      <span>
-                        {course.course_code} {course.course_name}
-                      </span>
-                      <span className="slpt-mono slpt-muted">—</span>
-                    </div>
-                    <div className="slpt-bar-track" />
-                  </li>
-                ))}
-              </ul>
+  <div className="slpt-ring" aria-hidden="true">
+    <svg viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="3.5" className="slpt-ring-track" />
+      {overallPct != null && (
+        <circle
+          cx="18"
+          cy="18"
+          r="15.9155"
+          fill="none"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          className={`slpt-ring-fill ${overallPct < 75 ? 'is-low' : ''}`}
+          strokeDasharray={`${Math.min(overallPct, 100)} 100`}
+        />
+      )}
+    </svg>
+    <span className="slpt-mono">{overallPct == null ? '—' : `${overallPct}%`}</span>
+  </div>
+  <div>
+    {dashboardQuery.isLoading && <p className="slpt-gauge-title">Loading attendance…</p>}
+    {dashboardQuery.isError && <p className="slpt-gauge-title">Attendance unavailable</p>}
+    {dashboardQuery.isSuccess && overallPct == null && (
+      <>
+        <p className="slpt-gauge-title">No sessions recorded yet</p>
+        <p className="slpt-muted">Your attendance appears once a lecturer marks a session.</p>
+      </>
+    )}
+    {overallPct != null && (
+      <>
+        <p className="slpt-gauge-title">
+          {overallPct >= 75 ? 'Good standing' : 'Below the 75% minimum'}
+        </p>
+        <p className="slpt-muted">
+          {totalAttended} of {totalCounted} counted sessions attended
+        </p>
+      </>
+    )}
+  </div>
+</div>
+{courses.length > 0 && (
+  <ul className="slpt-bars">
+    {courses.map((course) => {
+      const row = attendanceByCourse[course.id]
+      const pct = row?.attendance_pct ?? null
+      return (
+        <li key={course.id}>
+          <div className="slpt-bar-row">
+            <span>
+              {course.course_code} {course.course_name}
+            </span>
+            <span className="slpt-mono slpt-muted">{pct == null ? '—' : `${pct}%`}</span>
+          </div>
+          <div className="slpt-bar-track">
+            {pct != null && (
+              <div
+                className={`slpt-bar-fill ${pct < 75 ? 'is-low' : ''}`}
+                style={{ width: `${Math.min(pct, 100)}%` }}
+              />
             )}
+          </div>
+        </li>
+      )
+    })}
+  </ul>
+)}
           </section>
 
           <section className="slpt-card slpt-panel" aria-labelledby="slpt-notices-title">
@@ -996,6 +1066,11 @@ const STYLES = `
 .slpt-bar-row { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 11px; line-height: 14px; font-weight: 500; }
 .slpt-bar-row .slpt-muted { font-size: 11px; line-height: 14px; }
 .slpt-bar-track { margin-top: 4px; height: 6px; border-radius: 999px; background: var(--surface-mid); }
+.slpt-ring-fill { stroke: var(--primary); }
+.slpt-ring-fill.is-low { stroke: var(--error, #b3261e); }
+.slpt-bar-track { overflow: hidden; }
+.slpt-bar-fill { height: 100%; border-radius: 999px; background: var(--primary); }
+.slpt-bar-fill.is-low { background: var(--error, #b3261e); }
 .slpt-feed { display: flex; flex-direction: column; gap: 0.25rem; }
 .slpt-feed li { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem 0; }
 .slpt-dot { width: 8px; height: 8px; margin-top: 7px; border-radius: 999px; background: var(--primary); flex: 0 0 auto; }
