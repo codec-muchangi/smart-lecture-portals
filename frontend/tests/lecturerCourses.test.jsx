@@ -134,6 +134,22 @@ function routes(overrides = {}) {
       lecturers: [LECTURER],
       enrolled_count: 76,
     },
+    "/courses/c1/reports/attendance": {
+      course_id: "c1",
+      summary: {
+        students: 92,
+        sessions: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+        unmarked: 0,
+        attended: 0,
+        counted_records: 0,
+        attendance_pct: null,
+      },
+      students: [],
+    },
     "/courses/c1/students?page_size=100": {
       items: [
         {
@@ -436,11 +452,50 @@ describe("course workspace: overview", () => {
     expect(screen.getByText("Reach all 92 students")).toBeInTheDocument();
   });
 
-  test("says plainly when attendance is not live yet", async () => {
+  test("overview shows an empty attendance state before any session", async () => {
     routes();
     renderAt("/lecturer/courses/c1");
     expect(
-      await screen.findByText(/once attendance \(Phase 6\) goes live/i),
+      await screen.findByText(
+        /No sessions have been recorded for this course yet/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
+  test("overview shows the real attendance figures from the report", async () => {
+    routes({
+      "/courses/c1/reports/attendance": {
+        course_id: "c1",
+        summary: {
+          students: 92,
+          sessions: 3,
+          present: 200,
+          absent: 40,
+          late: 10,
+          excused: 6,
+          unmarked: 20,
+          attended: 210,
+          counted_records: 250,
+          attendance_pct: 84,
+        },
+        students: [],
+      },
+    });
+    renderAt("/lecturer/courses/c1");
+    expect(await screen.findByText("84%")).toBeInTheDocument();
+    expect(screen.getByText("3 sessions held")).toBeInTheDocument();
+    expect(screen.getByText("Sessions held: 3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Open attendance/ }),
+    ).toBeInTheDocument();
+  });
+
+  test("overview says attendance could not be loaded when the report fails", async () => {
+    routes({ "/courses/c1/reports/attendance": new Error("boom") });
+    renderAt("/lecturer/courses/c1");
+    expect(
+      await screen.findByText(/Attendance could not be loaded right now/),
     ).toBeInTheDocument();
   });
 

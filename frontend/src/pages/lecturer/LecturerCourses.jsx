@@ -62,6 +62,78 @@ import {
  *   shows "—" rather than a wrong number.
  */
 
+function useAttendanceReport(courseId) {
+  return useQuery({
+    queryKey: ["course-attendance-report", courseId],
+    queryFn: () => api(`/courses/${courseId}/reports/attendance`),
+    retry: false,
+  });
+}
+
+function TermAttendanceCard({ courseId }) {
+  const query = useAttendanceReport(courseId);
+  const summary = query.data?.summary;
+  const pct = summary?.attendance_pct ?? null;
+  let foot = "No sessions recorded yet";
+  if (query.isLoading) foot = "Loading attendance...";
+  else if (query.isError) foot = "Could not load";
+  else if (summary?.sessions > 0)
+    foot = `${summary.sessions} ${summary.sessions === 1 ? "session" : "sessions"} held`;
+  return (
+    <StatCard
+      label="Term Attendance"
+      icon="donut_large"
+      tone="mid"
+      foot={<span>{foot}</span>}
+    >
+      <span className="slpc-stat-value">
+        {pct == null ? "\u2014" : `${pct}%`}
+      </span>
+    </StatCard>
+  );
+}
+
+function AttendanceCompliancePanel({ courseId }) {
+  const query = useAttendanceReport(courseId);
+  const summary = query.data?.summary;
+  return (
+    <section className="slpc-card slpc-panel" aria-labelledby="slpc-att-title">
+      <div className="slpc-panel-head">
+        <div className="slpc-inline slpc-wrap">
+          <h2 id="slpc-att-title" className="slpc-h3">
+            Attendance &amp; Compliance
+          </h2>
+        </div>
+      </div>
+      {query.isLoading && <p className="slpc-empty">Loading attendance...</p>}
+      {query.isError && (
+        <p className="slpc-empty">Attendance could not be loaded right now.</p>
+      )}
+      {query.isSuccess && !(summary?.sessions > 0) && (
+        <p className="slpc-empty">
+          No sessions have been recorded for this course yet.
+        </p>
+      )}
+      {query.isSuccess && summary?.sessions > 0 && (
+        <ul>
+          <li>Sessions held: {summary.sessions}</li>
+          <li>Students enrolled: {summary.students}</li>
+          <li>Present: {summary.present}</li>
+          <li>Late: {summary.late}</li>
+          <li>Excused: {summary.excused}</li>
+          <li>Absent: {summary.absent}</li>
+          <li>Not yet marked: {summary.unmarked}</li>
+        </ul>
+      )}
+      <Link
+        className="slpc-action"
+        to={`/lecturer/courses/${courseId}/attendance`}
+      >
+        Open attendance
+      </Link>
+    </section>
+  );
+}
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "students", label: "Students" },
@@ -454,14 +526,7 @@ function OverviewPanel({ ctx }) {
           </span>
         </StatCard>
 
-        <StatCard
-          label="Term Attendance"
-          icon="donut_large"
-          tone="mid"
-          foot={<span>Available when attendance (Phase 6) goes live</span>}
-        >
-          <span className="slpc-stat-value">—</span>
-        </StatCard>
+        <TermAttendanceCard courseId={courseId} />
 
         <StatCard
           label="Assessment Standing"
@@ -769,26 +834,7 @@ function OverviewPanel({ ctx }) {
             </div>
           </section>
 
-          <section
-            className="slpc-card slpc-panel"
-            aria-labelledby="slpc-att-title"
-          >
-            <div className="slpc-panel-head">
-              <div className="slpc-inline">
-                <span className="slpc-accent">
-                  {renderIcon("fact_check", 20)}
-                </span>
-                <h2 id="slpc-att-title" className="slpc-h3">
-                  Attendance &amp; Compliance
-                </h2>
-              </div>
-              <span className="slpc-pill">Phase 6</span>
-            </div>
-            <p className="slpc-empty">
-              Session logs and the 80% threshold monitor will appear here once
-              attendance (Phase 6) goes live.
-            </p>
-          </section>
+          <AttendanceCompliancePanel courseId={courseId} />
 
           <section
             className="slpc-card slpc-panel"
