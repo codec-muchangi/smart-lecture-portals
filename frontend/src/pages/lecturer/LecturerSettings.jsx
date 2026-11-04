@@ -7,7 +7,6 @@ import { useAuth } from "../../app/AuthContext.jsx";
 import {
   COURSE_STYLES,
   ErrorCard,
-  PhasePanel,
   Skeleton,
   initials,
   renderIcon,

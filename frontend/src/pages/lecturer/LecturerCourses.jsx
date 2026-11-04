@@ -13,7 +13,6 @@ import {
   COURSES_KEY,
   COURSE_STYLES,
   ErrorCard,
-  PhasePanel,
   Skeleton,
   StatCard,
   countOf,
