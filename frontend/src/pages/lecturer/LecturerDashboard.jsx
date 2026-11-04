@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { useAuth } from '../../app/AuthContext.jsx'
-import { api } from '../../services/apiClient.js'
+import { useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../../app/AuthContext.jsx";
+import { api } from "../../services/apiClient.js";
 
 /*
  * Smart Lecture Portal: Lecturer dashboard (page content)
@@ -25,26 +25,26 @@ import { api } from '../../services/apiClient.js'
 
 const FONT_LINKS = [
   {
-    id: 'slp-font-jakarta',
-    href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+    id: "slp-font-jakarta",
+    href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
   },
   {
-    id: 'slp-font-symbols',
-    href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap',
+    id: "slp-font-symbols",
+    href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap",
   },
   {
-    id: 'slp-font-mono',
-    href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap',
+    id: "slp-font-mono",
+    href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap",
   },
-]
+];
 
-const FEED_LIMIT = 6
-const ACCENTS = ['primary', 'secondary', 'tertiary']
+const FEED_LIMIT = 6;
+const ACCENTS = ["primary", "secondary", "tertiary"];
 
 // Same query keys as AppShell, so courses and notifications are fetched once and shared.
-const COURSES_KEY = ['courses', 'assigned']
-const fetchCourses = () => api('/courses?page_size=100')
-const fetchNotifications = () => api('/notifications')
+const COURSES_KEY = ["courses", "assigned"];
+const fetchCourses = () => api("/courses?page_size=100");
+const fetchNotifications = () => api("/notifications");
 
 function renderIcon(name, size) {
   return (
@@ -55,65 +55,73 @@ function renderIcon(name, size) {
     >
       {name}
     </span>
-  )
+  );
 }
 
 // The API may return a bare array or a paginated { items, total } object; accept both.
 function toList(data) {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.items)) return data.items
-  return []
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 }
 
 function countOf(data) {
-  return typeof data?.total === 'number' ? data.total : toList(data).length
+  return typeof data?.total === "number" ? data.total : toList(data).length;
 }
 
 function courseBadge(course) {
-  const code = String(course.course_code ?? '')
-  const digits = code.replace(/\D/g, '')
-  return (digits || code).slice(-3).toUpperCase() || '—'
+  const code = String(course.course_code ?? "");
+  const digits = code.replace(/\D/g, "");
+  return (digits || code).slice(-3).toUpperCase() || "—";
 }
 
 // The database already stores "Semester 1"; only add the word when it is missing.
 function formatSemester(value) {
-  const text = String(value ?? '').trim()
-  if (!text) return ''
-  return /^semester/i.test(text) ? text : `Semester ${text}`
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return /^semester/i.test(text) ? text : `Semester ${text}`;
 }
 
 function formatDate(value) {
-  const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 // "14 mins ago", "1 hour ago", "Yesterday", then a plain date.
 function timeAgo(value) {
-  const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return ''
-  const minutes = Math.floor((Date.now() - date.getTime()) / 60000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
-  if (hours < 48) return 'Yesterday'
-  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "min" : "mins"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  if (hours < 48) return "Yesterday";
+  return date.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function sentenceCase(value) {
-  const text = String(value ?? '')
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''
+  const text = String(value ?? "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }
 
 function sumCounts(list) {
-  const total = { submitted: 0, late: 0, graded: 0, returned: 0 }
+  const total = { submitted: 0, late: 0, graded: 0, returned: 0 };
   list.forEach((counts) => {
     Object.keys(total).forEach((key) => {
-      total[key] += Number(counts?.[key]) || 0
-    })
-  })
-  return total
+      total[key] += Number(counts?.[key]) || 0;
+    });
+  });
+  return total;
 }
 
 /*
@@ -127,24 +135,36 @@ async function loadSummaries(courses) {
       const [roster, assignments] = await Promise.allSettled([
         api(`/courses/${course.id}/students?page_size=1`),
         api(`/courses/${course.id}/assignments?page_size=100`),
-      ])
-      const enrolled = roster.status === 'fulfilled' ? countOf(roster.value) : null
-      if (assignments.status !== 'fulfilled') {
-        return [course.id, { enrolled, grading: null, open: [] }]
+      ]);
+      const enrolled =
+        roster.status === "fulfilled" ? countOf(roster.value) : null;
+      if (assignments.status !== "fulfilled") {
+        return [course.id, { enrolled, grading: null, open: [] }];
       }
 
-      const published = toList(assignments.value).filter((item) => item.state !== 'draft')
-      const details = await Promise.allSettled(published.map((item) => api(`/assignments/${item.id}`)))
-      const complete = details.every((result) => result.status === 'fulfilled')
-      const grading = complete ? sumCounts(details.map((result) => result.value.submission_counts)) : null
+      const published = toList(assignments.value).filter(
+        (item) => item.state !== "draft",
+      );
+      const details = await Promise.allSettled(
+        published.map((item) => api(`/assignments/${item.id}`)),
+      );
+      const complete = details.every((result) => result.status === "fulfilled");
+      const grading = complete
+        ? sumCounts(details.map((result) => result.value.submission_counts))
+        : null;
       const open = published
-        .filter((item) => item.state === 'open')
-        .map((item) => ({ id: item.id, title: item.title, due_at: item.due_at, course_code: course.course_code }))
+        .filter((item) => item.state === "open")
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          due_at: item.due_at,
+          course_code: course.course_code,
+        }));
 
-      return [course.id, { enrolled, grading, open }]
+      return [course.id, { enrolled, grading, open }];
     }),
-  )
-  return Object.fromEntries(entries)
+  );
+  return Object.fromEntries(entries);
 }
 
 function Kpi({ label, icon, pill, danger, children }) {
@@ -157,79 +177,113 @@ function Kpi({ label, icon, pill, danger, children }) {
         </span>
         <span className="slpd-kpi-icon">{renderIcon(icon, 18)}</span>
       </div>
-      <div className={`slpd-kpi-body ${danger ? 'is-danger' : ''}`}>{children}</div>
+      <div className={`slpd-kpi-body ${danger ? "is-danger" : ""}`}>
+        {children}
+      </div>
     </div>
-  )
+  );
 }
 
 function LecturerDashboard() {
-  const { user } = useAuth()
+  const { user } = useAuth();
 
   useEffect(() => {
     FONT_LINKS.forEach(({ id, href }) => {
-      if (document.getElementById(id)) return
-      const link = document.createElement('link')
-      link.id = id
-      link.rel = 'stylesheet'
-      link.href = href
-      document.head.appendChild(link)
-    })
-  }, [])
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    });
+  }, []);
 
-  const coursesQuery = useQuery({ queryKey: COURSES_KEY, queryFn: fetchCourses })
-  const courses = useMemo(() => toList(coursesQuery.data), [coursesQuery.data])
-  const courseIds = courses.map((course) => course.id).join(',')
+  const coursesQuery = useQuery({
+    queryKey: COURSES_KEY,
+    queryFn: fetchCourses,
+  });
+  const courses = useMemo(() => toList(coursesQuery.data), [coursesQuery.data]);
+  const courseIds = courses.map((course) => course.id).join(",");
 
   const summaryQuery = useQuery({
-    queryKey: ['lecturer-dashboard', 'summaries', courseIds],
+    queryKey: ["lecturer-dashboard", "summaries", courseIds],
     queryFn: () => loadSummaries(courses),
     enabled: coursesQuery.isSuccess && courses.length > 0,
-  })
+  });
 
   // Not live until Phase 7; a failure here must never break the page.
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => api("/dashboard"),
+    retry: false,
+  });
+  const ratedRows = (dashboardQuery.data?.attendance_summary ?? []).filter(
+    (row) => row.attendance_pct != null,
+  );
+  const cohortPct =
+    ratedRows.length > 0
+      ? Math.round(
+          (ratedRows.reduce((sum, row) => sum + row.attendance_pct, 0) /
+            ratedRows.length) *
+            10,
+        ) / 10
+      : null;
   const notificationsQuery = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ["notifications"],
     queryFn: fetchNotifications,
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
-  })
+  });
 
   const retry = () => {
-    coursesQuery.refetch()
-    if (summaryQuery.isError) summaryQuery.refetch()
-  }
+    coursesQuery.refetch();
+    if (summaryQuery.isError) summaryQuery.refetch();
+  };
 
-  const summaries = summaryQuery.data ?? {}
-  const summariesPending = courses.length > 0 && summaryQuery.isPending
-  const ready = coursesQuery.isSuccess && !summariesPending
+  const summaries = summaryQuery.data ?? {};
+  const summariesPending = courses.length > 0 && summaryQuery.isPending;
+  const ready = coursesQuery.isSuccess && !summariesPending;
 
-  const details = user?.details ?? {}
-  const name = [details.title, user?.full_name].filter(Boolean).join(' ') || user?.email || 'Lecturer'
+  const details = user?.details ?? {};
+  const name =
+    [details.title, user?.full_name].filter(Boolean).join(" ") ||
+    user?.email ||
+    "Lecturer";
   const subtitle = [
     details.department && `Department of ${details.department}`,
     details.staff_number && `Staff ID: #${details.staff_number}`,
   ]
     .filter(Boolean)
-    .join(' • ')
+    .join(" • ");
 
-  const creditUnits = courses.reduce((sum, course) => sum + (Number(course.credit_hours) || 0), 0)
+  const creditUnits = courses.reduce(
+    (sum, course) => sum + (Number(course.credit_hours) || 0),
+    0,
+  );
   const totalStudents = courses.reduce((sum, course) => {
-    const enrolled = summaries[course.id]?.enrolled
-    return sum + (typeof enrolled === 'number' ? enrolled : 0)
-  }, 0)
+    const enrolled = summaries[course.id]?.enrolled;
+    return sum + (typeof enrolled === "number" ? enrolled : 0);
+  }, 0);
 
-  const gradingKnown = courses.every((course) => Boolean(summaries[course.id]?.grading))
-  const backlog = sumCounts(courses.map((course) => summaries[course.id]?.grading))
-  const ungraded = backlog.submitted + backlog.late
+  const gradingKnown = courses.every((course) =>
+    Boolean(summaries[course.id]?.grading),
+  );
+  const backlog = sumCounts(
+    courses.map((course) => summaries[course.id]?.grading),
+  );
+  const ungraded = backlog.submitted + backlog.late;
 
   const openAssignments = courses
     .flatMap((course) => summaries[course.id]?.open ?? [])
-    .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))
-  const nextDue = openAssignments.find((item) => new Date(item.due_at) >= new Date()) ?? null
+    .sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+  const nextDue =
+    openAssignments.find((item) => new Date(item.due_at) >= new Date()) ?? null;
 
-  const notifications = notificationsQuery.isSuccess ? toList(notificationsQuery.data) : null
-  const feedMissing = notificationsQuery.error?.status === 404
+  const notifications = notificationsQuery.isSuccess
+    ? toList(notificationsQuery.data)
+    : null;
+  const feedMissing = notificationsQuery.error?.status === 404;
 
   return (
     <div className="slpd">
@@ -245,37 +299,43 @@ function LecturerDashboard() {
       <div className="slpd-kpis">
         <Kpi label="Active Enrollment" icon="groups">
           <div className="slpd-kpi-row">
-            <span className="slpd-kpi-value">{ready ? totalStudents : '—'}</span>
+            <span className="slpd-kpi-value">
+              {ready ? totalStudents : "—"}
+            </span>
             <span className="slpd-kpi-unit">Students</span>
           </div>
           <div className="slpd-kpi-note">
             <span className="slpd-dot" aria-hidden="true" />
             {ready
-              ? `Across ${courses.length} assigned ${courses.length === 1 ? 'course' : 'courses'}`
-              : 'Loading…'}
+              ? `Across ${courses.length} assigned ${courses.length === 1 ? "course" : "courses"}`
+              : "Loading…"}
           </div>
         </Kpi>
 
         <Kpi
           label="Grading Backlog"
           icon="rate_review"
-          pill={ready && gradingKnown && ungraded > 0 ? 'Action needed' : null}
+          pill={ready && gradingKnown && ungraded > 0 ? "Action needed" : null}
           danger={ready && gradingKnown && ungraded > 0}
         >
           <div className="slpd-kpi-row">
-            <span className="slpd-kpi-value">{ready && gradingKnown ? ungraded : '—'}</span>
+            <span className="slpd-kpi-value">
+              {ready && gradingKnown ? ungraded : "—"}
+            </span>
             <span className="slpd-kpi-unit">Scripts Ungraded</span>
           </div>
           <div className="slpd-kpi-note slpd-mono">
-            {!ready && 'Loading…'}
-            {ready && !gradingKnown && 'Could not load'}
+            {!ready && "Loading…"}
+            {ready && !gradingKnown && "Could not load"}
             {ready && gradingKnown && (
               <>
                 <span>{backlog.submitted} On time</span>
                 <span className="slpd-sep" aria-hidden="true">
                   •
                 </span>
-                <span className={backlog.late > 0 ? 'slpd-warn' : ''}>{backlog.late} Late</span>
+                <span className={backlog.late > 0 ? "slpd-warn" : ""}>
+                  {backlog.late} Late
+                </span>
                 <span className="slpd-sep" aria-hidden="true">
                   •
                 </span>
@@ -287,21 +347,33 @@ function LecturerDashboard() {
 
         <Kpi label="Cohort Attendance" icon="person_check">
           <div className="slpd-kpi-row">
-            <span className="slpd-kpi-value">—</span>
+            <span className="slpd-kpi-value">
+              {cohortPct == null ? "\u2014" : `${cohortPct}%`}
+            </span>
             <span className="slpd-kpi-unit">Avg Rate</span>
           </div>
-          <div className="slpd-kpi-note slpd-muted">Available when attendance (Phase 6) goes live</div>
+          <div className="slpd-kpi-note slpd-muted">
+            {dashboardQuery.isLoading && "Loading attendance..."}
+            {dashboardQuery.isError && "Attendance is unavailable right now"}
+            {dashboardQuery.isSuccess &&
+              cohortPct == null &&
+              "No sessions recorded yet"}
+            {cohortPct != null &&
+              `Across ${ratedRows.length} ${ratedRows.length === 1 ? "course" : "courses"} with sessions`}
+          </div>
         </Kpi>
 
         <Kpi label="Upcoming Deadlines" icon="event_upcoming">
           <div className="slpd-kpi-row">
-            <span className="slpd-kpi-value">{ready ? openAssignments.length : '—'}</span>
+            <span className="slpd-kpi-value">
+              {ready ? openAssignments.length : "—"}
+            </span>
             <span className="slpd-kpi-unit">Open Assignments</span>
           </div>
           <div className="slpd-kpi-note slpd-mono">
-            {!ready && 'Loading…'}
+            {!ready && "Loading…"}
             {ready && nextDue && `Next due ${formatDate(nextDue.due_at)}`}
-            {ready && !nextDue && 'No upcoming deadlines'}
+            {ready && !nextDue && "No upcoming deadlines"}
           </div>
         </Kpi>
       </div>
@@ -315,16 +387,20 @@ function LecturerDashboard() {
                 <h2 id="slpd-courses-title" className="slpd-h2">
                   Assigned Courses
                 </h2>
-                <p className="slpd-muted">Semester active modules and registered faculty loads</p>
+                <p className="slpd-muted">
+                  Semester active modules and registered faculty loads
+                </p>
               </div>
             </div>
             <div className="slpd-panel-side">
               {coursesQuery.isSuccess && (
-                <span className="slpd-mono slpd-total">Total: {creditUnits} Credit Units</span>
+                <span className="slpd-mono slpd-total">
+                  Total: {creditUnits} Credit Units
+                </span>
               )}
               <Link to="/lecturer/courses" className="slpd-link">
                 <span>All courses</span>
-                {renderIcon('arrow_forward', 16)}
+                {renderIcon("arrow_forward", 16)}
               </Link>
             </div>
           </div>
@@ -339,11 +415,13 @@ function LecturerDashboard() {
 
           {coursesQuery.isError && (
             <div className="slpd-empty" role="alert">
-              {renderIcon('cloud_off', 32)}
-              <p className="slpd-empty-title">We couldn&apos;t load your courses.</p>
+              {renderIcon("cloud_off", 32)}
+              <p className="slpd-empty-title">
+                We couldn&apos;t load your courses.
+              </p>
               <p className="slpd-muted">Check your connection and try again.</p>
               <button type="button" className="slpd-btn" onClick={retry}>
-                {renderIcon('refresh', 18)}
+                {renderIcon("refresh", 18)}
                 <span>Try again</span>
               </button>
             </div>
@@ -351,52 +429,70 @@ function LecturerDashboard() {
 
           {coursesQuery.isSuccess && courses.length === 0 && (
             <div className="slpd-empty">
-              {renderIcon('menu_book', 32)}
+              {renderIcon("menu_book", 32)}
               <p className="slpd-empty-title">No courses assigned yet.</p>
-              <p className="slpd-muted">Courses are assigned to you by your institution.</p>
+              <p className="slpd-muted">
+                Courses are assigned to you by your institution.
+              </p>
             </div>
           )}
 
           {coursesQuery.isSuccess && courses.length > 0 && (
             <ul className="slpd-list">
               {courses.map((course, index) => {
-                const accent = ACCENTS[index % ACCENTS.length]
-                const summary = summaries[course.id]
-                const period = [formatSemester(course.semester), course.academic_year].filter(Boolean).join(' • ')
-                const awaiting = summary?.grading ? summary.grading.submitted + summary.grading.late : 0
-                let students = 'Students unavailable'
-                if (summariesPending) students = 'Counting students…'
-                else if (typeof summary?.enrolled === 'number') {
-                  students = `${summary.enrolled} ${summary.enrolled === 1 ? 'Student' : 'Students'} Enrolled`
+                const accent = ACCENTS[index % ACCENTS.length];
+                const summary = summaries[course.id];
+                const period = [
+                  formatSemester(course.semester),
+                  course.academic_year,
+                ]
+                  .filter(Boolean)
+                  .join(" • ");
+                const awaiting = summary?.grading
+                  ? summary.grading.submitted + summary.grading.late
+                  : 0;
+                let students = "Students unavailable";
+                if (summariesPending) students = "Counting students…";
+                else if (typeof summary?.enrolled === "number") {
+                  students = `${summary.enrolled} ${summary.enrolled === 1 ? "Student" : "Students"} Enrolled`;
                 }
                 return (
                   <li key={course.id} className="slpd-course">
                     <div className="slpd-course-main">
-                      <span className={`slpd-badge-box slpd-accent-${accent}`}>{courseBadge(course)}</span>
+                      <span className={`slpd-badge-box slpd-accent-${accent}`}>
+                        {courseBadge(course)}
+                      </span>
                       <div className="slpd-course-body">
                         <div className="slpd-course-title-row">
-                          <span className="slpd-course-title">{course.course_name}</span>
-                          <span className="slpd-pill">{course.course_code}</span>
+                          <span className="slpd-course-title">
+                            {course.course_name}
+                          </span>
+                          <span className="slpd-pill">
+                            {course.course_code}
+                          </span>
                           {course.credit_hours != null && (
                             <span className="slpd-pill slpd-pill-accent">
-                              {course.credit_hours} {Number(course.credit_hours) === 1 ? 'Credit' : 'Credits'}
+                              {course.credit_hours}{" "}
+                              {Number(course.credit_hours) === 1
+                                ? "Credit"
+                                : "Credits"}
                             </span>
                           )}
                         </div>
                         <div className="slpd-meta">
                           {period && (
                             <span className="slpd-meta-item">
-                              {renderIcon('calendar_today', 16)}
+                              {renderIcon("calendar_today", 16)}
                               {period}
                             </span>
                           )}
                           <span className="slpd-meta-item">
-                            {renderIcon('person', 16)}
+                            {renderIcon("person", 16)}
                             {students}
                           </span>
                           {awaiting > 0 && (
                             <span className="slpd-meta-item">
-                              {renderIcon('rate_review', 16)}
+                              {renderIcon("rate_review", 16)}
                               {awaiting} awaiting grading
                             </span>
                           )}
@@ -404,14 +500,21 @@ function LecturerDashboard() {
                       </div>
                     </div>
                     <div className="slpd-course-side">
-                      {course.status && <span className="slpd-status">{sentenceCase(course.status)}</span>}
-                      <Link to={`/lecturer/courses/${course.id}`} className="slpd-btn">
+                      {course.status && (
+                        <span className="slpd-status">
+                          {sentenceCase(course.status)}
+                        </span>
+                      )}
+                      <Link
+                        to={`/lecturer/courses/${course.id}`}
+                        className="slpd-btn"
+                      >
                         <span>Manage Course</span>
-                        {renderIcon('chevron_right', 16)}
+                        {renderIcon("chevron_right", 16)}
                       </Link>
                     </div>
                   </li>
-                )
+                );
               })}
             </ul>
           )}
@@ -420,7 +523,9 @@ function LecturerDashboard() {
         <section className="slpd-panel" aria-labelledby="slpd-feed-title">
           <div className="slpd-feed-head">
             <div className="slpd-panel-title">
-              <span className="slpd-feed-icon">{renderIcon('notifications_active', 20)}</span>
+              <span className="slpd-feed-icon">
+                {renderIcon("notifications_active", 20)}
+              </span>
               <h2 id="slpd-feed-title" className="slpd-h3">
                 Activity Feed
               </h2>
@@ -439,8 +544,8 @@ function LecturerDashboard() {
           {notificationsQuery.isError && (
             <p className="slpd-muted">
               {feedMissing
-                ? 'Activity updates will appear here once notifications go live (Phase 7).'
-                : 'The activity feed is unavailable right now.'}
+                ? "Activity updates will appear here once notifications go live (Phase 7)."
+                : "The activity feed is unavailable right now."}
             </p>
           )}
 
@@ -452,11 +557,17 @@ function LecturerDashboard() {
             <ul className="slpd-feed">
               {notifications.slice(0, FEED_LIMIT).map((item) => (
                 <li key={item.id} className="slpd-feed-item">
-                  <span className={`slpd-feed-dot ${item.is_read ? 'is-read' : ''}`} />
+                  <span
+                    className={`slpd-feed-dot ${item.is_read ? "is-read" : ""}`}
+                  />
                   <div className="slpd-feed-body">
                     <p className="slpd-feed-title">{item.title}</p>
-                    {item.message && <p className="slpd-feed-text">{item.message}</p>}
-                    <span className="slpd-feed-time">{timeAgo(item.created_at)}</span>
+                    {item.message && (
+                      <p className="slpd-feed-text">{item.message}</p>
+                    )}
+                    <span className="slpd-feed-time">
+                      {timeAgo(item.created_at)}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -465,10 +576,10 @@ function LecturerDashboard() {
         </section>
       </div>
     </div>
-  )
+  );
 }
 
-export default LecturerDashboard
+export default LecturerDashboard;
 
 const STYLES = `
 .slpd {
@@ -687,4 +798,4 @@ const STYLES = `
   .slpd-skeleton { animation: none; }
   .slpd *, .slpd *::before, .slpd *::after { transition: none !important; }
 }
-`
+`;

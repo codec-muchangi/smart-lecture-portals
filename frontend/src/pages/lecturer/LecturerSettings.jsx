@@ -1,13 +1,34 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '../../services/apiClient.js'
-import { supabase } from '../../services/supabase.js'
-import { useAuth } from '../../app/AuthContext.jsx'
-import { COURSE_STYLES, ErrorCard, PhasePanel, Skeleton, initials, renderIcon, useCourseFonts } from '../../components/courseKit.jsx'
-import { DISPLAY_DEFAULTS, SIZES, applyDisplay, readDisplay, saveDisplay } from '../../utils/display.js'
-import { formatDate, sentenceCase } from '../../utils/format.js'
-import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, validateProfile, without } from '../../utils/settingsHelpers.js'
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "../../services/apiClient.js";
+import { supabase } from "../../services/supabase.js";
+import { useAuth } from "../../app/AuthContext.jsx";
+import {
+  COURSE_STYLES,
+  ErrorCard,
+  Skeleton,
+  initials,
+  renderIcon,
+  useCourseFonts,
+} from "../../components/courseKit.jsx";
+import {
+  DISPLAY_DEFAULTS,
+  SIZES,
+  applyDisplay,
+  readDisplay,
+  saveDisplay,
+} from "../../utils/display.js";
+import { formatDate, sentenceCase } from "../../utils/format.js";
+import {
+  baseValues,
+  changedPayload,
+  detailsOf,
+  firstText,
+  passwordChecks,
+  validateProfile,
+  without,
+} from "../../utils/settingsHelpers.js";
 
 /*
  * Smart Lecture Portal: lecturer Faculty Settings & Preferences
@@ -29,15 +50,23 @@ import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, valid
  *   devices, theme/date-format/timezone choices, and the office and bio fields. Nothing here pretends otherwise.
  */
 
-const ME_KEY = ['me']
+const ME_KEY = ["me"];
 const TABS = [
-  { id: 'profile', label: 'Profile information', icon: 'badge' },
-  { id: 'security', label: 'Account & security', icon: 'security' },
-  { id: 'notifications', label: 'Notification preferences', icon: 'notifications_active' },
-  { id: 'display', label: 'Display & accessibility', icon: 'contrast' },
-  { id: 'sessions', label: 'Sessions', icon: 'devices' },
-]
-const SIZE_LABELS = { 100: 'Standard (100%)', 110: 'Medium (110%)', 125: 'Large (125%)' }
+  { id: "profile", label: "Profile information", icon: "badge" },
+  { id: "security", label: "Account & security", icon: "security" },
+  {
+    id: "notifications",
+    label: "Notification preferences",
+    icon: "notifications_active",
+  },
+  { id: "display", label: "Display & accessibility", icon: "contrast" },
+  { id: "sessions", label: "Sessions", icon: "devices" },
+];
+const SIZE_LABELS = {
+  100: "Standard (100%)",
+  110: "Medium (110%)",
+  125: "Large (125%)",
+};
 
 const SETTINGS_STYLES = `
 .slpx-card { padding: 1.5rem; min-width: 0; }
@@ -133,13 +162,23 @@ const SETTINGS_STYLES = `
   .slpx-title { font-size: 22px; line-height: 30px; }
   .slpx-actions .slpc-btn { flex: 1 1 100%; justify-content: center; }
 }
-`
+`;
 
 /* ---------- helpers ---------- */
 
 /* ---------- pieces ---------- */
 
-function Field({ id, label, required, lock, help, error, icon, end, children }) {
+function Field({
+  id,
+  label,
+  required,
+  lock,
+  help,
+  error,
+  icon,
+  end,
+  children,
+}) {
   return (
     <div className="slpx-field">
       <label className="slpx-label" htmlFor={id}>
@@ -147,7 +186,7 @@ function Field({ id, label, required, lock, help, error, icon, end, children }) 
         {required && <span className="req"> *</span>}
         {lock && (
           <span className="slpx-lock">
-            {renderIcon('lock', 12)}
+            {renderIcon("lock", 12)}
             {lock}
           </span>
         )}
@@ -165,11 +204,11 @@ function Field({ id, label, required, lock, help, error, icon, end, children }) 
         help && <span className="slpx-help">{help}</span>
       )}
     </div>
-  )
+  );
 }
 
 function PasswordField({ id, label, value, onChange, error, autoComplete }) {
-  const [shown, setShown] = useState(false)
+  const [shown, setShown] = useState(false);
   return (
     <Field
       id={id}
@@ -177,237 +216,446 @@ function PasswordField({ id, label, value, onChange, error, autoComplete }) {
       icon="lock"
       error={error}
       end={
-        <button type="button" className="slpx-end" aria-label={`${shown ? 'Hide' : 'Show'} ${label.toLowerCase()}`} aria-pressed={shown} onClick={() => setShown(!shown)}>
-          {renderIcon(shown ? 'visibility_off' : 'visibility', 20)}
+        <button
+          type="button"
+          className="slpx-end"
+          aria-label={`${shown ? "Hide" : "Show"} ${label.toLowerCase()}`}
+          aria-pressed={shown}
+          onClick={() => setShown(!shown)}
+        >
+          {renderIcon(shown ? "visibility_off" : "visibility", 20)}
         </button>
       }
     >
-      <input id={id} className={`slpx-input has-end ${error ? 'is-bad' : ''}`} type={shown ? 'text' : 'password'} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} aria-invalid={error ? 'true' : undefined} aria-describedby={error ? `${id}-err` : undefined} />
+      <input
+        id={id}
+        className={`slpx-input has-end ${error ? "is-bad" : ""}`}
+        type={shown ? "text" : "password"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        autoComplete={autoComplete}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? `${id}-err` : undefined}
+      />
     </Field>
-  )
+  );
 }
 
 function ProfileTab({ me }) {
-  const queryClient = useQueryClient()
-  const { refresh } = useAuth()
-  const [draft, setDraft] = useState({})
-  const [serverErrors, setServerErrors] = useState({})
-  const [status, setStatus] = useState(null)
-  const values = { ...baseValues(me), ...draft }
-  const errors = { ...validateProfile(values), ...serverErrors }
-  const payload = changedPayload(me, values)
-  const dirty = Object.keys(payload).length > 0
-  const details = me.details ?? {}
+  const queryClient = useQueryClient();
+  const { refresh } = useAuth();
+  const [draft, setDraft] = useState({});
+  const [serverErrors, setServerErrors] = useState({});
+  const [status, setStatus] = useState(null);
+  const values = { ...baseValues(me), ...draft };
+  const errors = { ...validateProfile(values), ...serverErrors };
+  const payload = changedPayload(me, values);
+  const dirty = Object.keys(payload).length > 0;
+  const details = me.details ?? {};
 
   const save = useMutation({
-    mutationFn: (body) => api('/me', { method: 'PATCH', body }),
+    mutationFn: (body) => api("/me", { method: "PATCH", body }),
     onSuccess: async () => {
-      setDraft({})
-      setServerErrors({})
-      setStatus({ ok: true, text: 'Profile saved.' })
-      await queryClient.invalidateQueries({ queryKey: ME_KEY })
-      if (typeof refresh === 'function') await refresh()
+      setDraft({});
+      setServerErrors({});
+      setStatus({ ok: true, text: "Profile saved." });
+      await queryClient.invalidateQueries({ queryKey: ME_KEY });
+      if (typeof refresh === "function") await refresh();
     },
     onError: (error) => {
-      const fields = detailsOf(error)
-      const next = {}
-      ;['full_name', 'phone', 'avatar_url'].forEach((key) => {
-        if (fields[key]) next[key] = firstText(fields[key])
-      })
-      setServerErrors(next)
-      setStatus({ ok: false, text: Object.keys(next).length > 0 ? 'Some fields need fixing.' : error?.message || 'The profile could not be saved.' })
+      const fields = detailsOf(error);
+      const next = {};
+      ["full_name", "phone", "avatar_url"].forEach((key) => {
+        if (fields[key]) next[key] = firstText(fields[key]);
+      });
+      setServerErrors(next);
+      setStatus({
+        ok: false,
+        text:
+          Object.keys(next).length > 0
+            ? "Some fields need fixing."
+            : error?.message || "The profile could not be saved.",
+      });
     },
-  })
+  });
 
   const edit = (key) => (event) => {
-    setDraft({ ...draft, [key]: event.target.value })
-    setServerErrors(without(serverErrors, key))
-    setStatus(null)
-  }
+    setDraft({ ...draft, [key]: event.target.value });
+    setServerErrors(without(serverErrors, key));
+    setStatus(null);
+  };
   const cancel = () => {
-    setDraft({})
-    setServerErrors({})
-    setStatus(null)
-  }
+    setDraft({});
+    setServerErrors({});
+    setStatus(null);
+  };
   const submit = (event) => {
-    event.preventDefault()
-    if (!dirty || Object.values(validateProfile(values)).some(Boolean)) return
-    save.mutate(payload)
-  }
-  const invalid = Object.values(validateProfile(values)).some(Boolean)
+    event.preventDefault();
+    if (!dirty || Object.values(validateProfile(values)).some(Boolean)) return;
+    save.mutate(payload);
+  };
+  const invalid = Object.values(validateProfile(values)).some(Boolean);
 
   return (
-    <form className="slpx-panel" onSubmit={submit} noValidate aria-label="Profile form">
+    <form
+      className="slpx-panel"
+      onSubmit={submit}
+      noValidate
+      aria-label="Profile form"
+    >
       <div>
         <h2 className="slpx-h">Faculty dossier details</h2>
-        <p className="slpx-sub">Your name, phone and photo link are visible to students and colleagues. Registry details are read-only.</p>
+        <p className="slpx-sub">
+          Your name, phone and photo link are visible to students and
+          colleagues. Registry details are read-only.
+        </p>
       </div>
       <div className="slpx-grid">
-        <Field id="set-name" label="Full name" required icon="person" error={errors.full_name}>
-          <input id="set-name" className={`slpx-input ${errors.full_name ? 'is-bad' : ''}`} value={values.full_name} onChange={edit('full_name')} autoComplete="name" aria-invalid={errors.full_name ? 'true' : undefined} />
+        <Field
+          id="set-name"
+          label="Full name"
+          required
+          icon="person"
+          error={errors.full_name}
+        >
+          <input
+            id="set-name"
+            className={`slpx-input ${errors.full_name ? "is-bad" : ""}`}
+            value={values.full_name}
+            onChange={edit("full_name")}
+            autoComplete="name"
+            aria-invalid={errors.full_name ? "true" : undefined}
+          />
         </Field>
-        <Field id="set-email" label="Institutional email" lock="Managed by sign-in" icon="mail" help="Your sign-in address cannot be changed here.">
-          <input id="set-email" className="slpx-input" value={me.email ?? ''} readOnly />
+        <Field
+          id="set-email"
+          label="Institutional email"
+          lock="Managed by sign-in"
+          icon="mail"
+          help="Your sign-in address cannot be changed here."
+        >
+          <input
+            id="set-email"
+            className="slpx-input"
+            value={me.email ?? ""}
+            readOnly
+          />
         </Field>
-        <Field id="set-phone" label="Direct contact phone" icon="call" error={errors.phone} help="Optional. Leave empty to remove it.">
-          <input id="set-phone" className={`slpx-input ${errors.phone ? 'is-bad' : ''}`} value={values.phone} onChange={edit('phone')} autoComplete="tel" inputMode="tel" aria-invalid={errors.phone ? 'true' : undefined} />
+        <Field
+          id="set-phone"
+          label="Direct contact phone"
+          icon="call"
+          error={errors.phone}
+          help="Optional. Leave empty to remove it."
+        >
+          <input
+            id="set-phone"
+            className={`slpx-input ${errors.phone ? "is-bad" : ""}`}
+            value={values.phone}
+            onChange={edit("phone")}
+            autoComplete="tel"
+            inputMode="tel"
+            aria-invalid={errors.phone ? "true" : undefined}
+          />
         </Field>
-        <Field id="set-dept" label="Department" lock="Set by registry" icon="domain">
-          <input id="set-dept" className="slpx-input" value={details.department ?? ''} readOnly />
+        <Field
+          id="set-dept"
+          label="Department"
+          lock="Set by registry"
+          icon="domain"
+        >
+          <input
+            id="set-dept"
+            className="slpx-input"
+            value={details.department ?? ""}
+            readOnly
+          />
         </Field>
-        <Field id="set-title" label="Academic title" lock="Set by registry" icon="school">
-          <input id="set-title" className="slpx-input" value={details.title ?? ''} readOnly />
+        <Field
+          id="set-title"
+          label="Academic title"
+          lock="Set by registry"
+          icon="school"
+        >
+          <input
+            id="set-title"
+            className="slpx-input"
+            value={details.title ?? ""}
+            readOnly
+          />
         </Field>
-        <Field id="set-staff" label="Staff number" lock="Set by registry" icon="badge">
-          <input id="set-staff" className="slpx-input" value={details.staff_number ?? ''} readOnly />
+        <Field
+          id="set-staff"
+          label="Staff number"
+          lock="Set by registry"
+          icon="badge"
+        >
+          <input
+            id="set-staff"
+            className="slpx-input"
+            value={details.staff_number ?? ""}
+            readOnly
+          />
         </Field>
-        <div className="is-full" style={{ gridColumn: '1 / -1' }}>
-          <Field id="set-avatar" label="Profile photo link" icon="image" error={errors.avatar_url} help="An https:// link to an image. Leave empty to show your initials.">
-            <input id="set-avatar" className={`slpx-input ${errors.avatar_url ? 'is-bad' : ''}`} value={values.avatar_url} onChange={edit('avatar_url')} inputMode="url" autoComplete="off" aria-invalid={errors.avatar_url ? 'true' : undefined} />
+        <div className="is-full" style={{ gridColumn: "1 / -1" }}>
+          <Field
+            id="set-avatar"
+            label="Profile photo link"
+            icon="image"
+            error={errors.avatar_url}
+            help="An https:// link to an image. Leave empty to show your initials."
+          >
+            <input
+              id="set-avatar"
+              className={`slpx-input ${errors.avatar_url ? "is-bad" : ""}`}
+              value={values.avatar_url}
+              onChange={edit("avatar_url")}
+              inputMode="url"
+              autoComplete="off"
+              aria-invalid={errors.avatar_url ? "true" : undefined}
+            />
           </Field>
         </div>
       </div>
       {status && (
-        <p className={`slpx-status ${status.ok ? '' : 'is-bad'}`} role={status.ok ? 'status' : 'alert'}>
+        <p
+          className={`slpx-status ${status.ok ? "" : "is-bad"}`}
+          role={status.ok ? "status" : "alert"}
+        >
           {status.text}
         </p>
       )}
       <div className="slpx-actions">
         <span className="slpx-note">
-          {renderIcon(dirty ? 'edit_note' : 'cloud_done', 18)}
-          {dirty ? 'You have unsaved changes' : 'Everything is saved'}
+          {renderIcon(dirty ? "edit_note" : "cloud_done", 18)}
+          {dirty ? "You have unsaved changes" : "Everything is saved"}
         </span>
-        <button type="button" className="slpc-btn slpc-btn-soft" onClick={cancel} disabled={!dirty || save.isPending}>
+        <button
+          type="button"
+          className="slpc-btn slpc-btn-soft"
+          onClick={cancel}
+          disabled={!dirty || save.isPending}
+        >
           Cancel
         </button>
-        <button type="submit" className="slpc-btn slpc-btn-primary" disabled={!dirty || invalid || save.isPending}>
-          {renderIcon('check_circle', 18)}
-          {save.isPending ? 'Saving…' : 'Save profile changes'}
+        <button
+          type="submit"
+          className="slpc-btn slpc-btn-primary"
+          disabled={!dirty || invalid || save.isPending}
+        >
+          {renderIcon("check_circle", 18)}
+          {save.isPending ? "Saving…" : "Save profile changes"}
         </button>
       </div>
     </form>
-  )
+  );
 }
 
 function SecurityTab({ me }) {
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [serverErrors, setServerErrors] = useState({})
-  const [status, setStatus] = useState(null)
-  const [resetStatus, setResetStatus] = useState(null)
-  const checks = passwordChecks(current, next, confirm)
-  const ready = current.length > 0 && checks.every((check) => check.met)
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [serverErrors, setServerErrors] = useState({});
+  const [status, setStatus] = useState(null);
+  const [resetStatus, setResetStatus] = useState(null);
+  const checks = passwordChecks(current, next, confirm);
+  const ready = current.length > 0 && checks.every((check) => check.met);
 
   const change = useMutation({
-    mutationFn: (body) => api('/auth/password/change', { method: 'POST', body }),
+    mutationFn: (body) =>
+      api("/auth/password/change", { method: "POST", body }),
     onSuccess: () => {
-      setCurrent('')
-      setNext('')
-      setConfirm('')
-      setServerErrors({})
-      setStatus({ ok: true, text: 'Password updated.' })
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setServerErrors({});
+      setStatus({ ok: true, text: "Password updated." });
     },
     onError: (error) => {
-      const fields = detailsOf(error)
-      const mapped = {}
-      if (fields.current_password) mapped.current = firstText(fields.current_password)
-      if (fields.new_password) mapped.next = firstText(fields.new_password)
-      setServerErrors(mapped)
-      setStatus({ ok: false, text: Object.keys(mapped).length > 0 ? 'Please check the highlighted fields.' : error?.message || 'The password could not be changed.' })
+      const fields = detailsOf(error);
+      const mapped = {};
+      if (fields.current_password)
+        mapped.current = firstText(fields.current_password);
+      if (fields.new_password) mapped.next = firstText(fields.new_password);
+      setServerErrors(mapped);
+      setStatus({
+        ok: false,
+        text:
+          Object.keys(mapped).length > 0
+            ? "Please check the highlighted fields."
+            : error?.message || "The password could not be changed.",
+      });
     },
-  })
+  });
   const reset = useMutation({
-    mutationFn: () => api('/auth/password/reset', { method: 'POST', body: { email: me.email } }),
-    onSuccess: () => setResetStatus({ ok: true, text: `If ${me.email} can sign in, a reset link is on its way.` }),
-    onError: (error) => setResetStatus({ ok: false, text: error?.status === 429 ? 'Too many requests. Please wait a few minutes and try again.' : 'The reset email could not be requested. Try again shortly.' }),
-  })
+    mutationFn: () =>
+      api("/auth/password/reset", {
+        method: "POST",
+        body: { email: me.email },
+      }),
+    onSuccess: () =>
+      setResetStatus({
+        ok: true,
+        text: `If ${me.email} can sign in, a reset link is on its way.`,
+      }),
+    onError: (error) =>
+      setResetStatus({
+        ok: false,
+        text:
+          error?.status === 429
+            ? "Too many requests. Please wait a few minutes and try again."
+            : "The reset email could not be requested. Try again shortly.",
+      }),
+  });
 
   const submit = (event) => {
-    event.preventDefault()
-    if (!ready) return
-    setStatus(null)
-    change.mutate({ current_password: current, new_password: next })
-  }
+    event.preventDefault();
+    if (!ready) return;
+    setStatus(null);
+    change.mutate({ current_password: current, new_password: next });
+  };
 
   return (
     <div className="slpx-panel">
-      <form className="slpx-panel" onSubmit={submit} noValidate aria-label="Change password">
+      <form
+        className="slpx-panel"
+        onSubmit={submit}
+        noValidate
+        aria-label="Change password"
+      >
         <div>
           <h2 className="slpx-h">Change password</h2>
-          <p className="slpx-sub">Choose a password you do not use anywhere else. It is never shown or stored in plain text.</p>
+          <p className="slpx-sub">
+            Choose a password you do not use anywhere else. It is never shown or
+            stored in plain text.
+          </p>
         </div>
         <div className="slpx-grid">
-          <div className="is-full" style={{ gridColumn: '1 / -1' }}>
-            <PasswordField id="pw-current" label="Current password" value={current} onChange={(value) => { setCurrent(value); setServerErrors(without(serverErrors, 'current')) }} error={serverErrors.current} autoComplete="current-password" />
+          <div className="is-full" style={{ gridColumn: "1 / -1" }}>
+            <PasswordField
+              id="pw-current"
+              label="Current password"
+              value={current}
+              onChange={(value) => {
+                setCurrent(value);
+                setServerErrors(without(serverErrors, "current"));
+              }}
+              error={serverErrors.current}
+              autoComplete="current-password"
+            />
           </div>
-          <PasswordField id="pw-new" label="New password" value={next} onChange={(value) => { setNext(value); setServerErrors(without(serverErrors, 'next')) }} error={serverErrors.next} autoComplete="new-password" />
-          <PasswordField id="pw-confirm" label="Confirm new password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+          <PasswordField
+            id="pw-new"
+            label="New password"
+            value={next}
+            onChange={(value) => {
+              setNext(value);
+              setServerErrors(without(serverErrors, "next"));
+            }}
+            error={serverErrors.next}
+            autoComplete="new-password"
+          />
+          <PasswordField
+            id="pw-confirm"
+            label="Confirm new password"
+            value={confirm}
+            onChange={setConfirm}
+            autoComplete="new-password"
+          />
         </div>
         <ul className="slpx-checks" aria-label="Password rules">
           {checks.map((check) => (
-            <li key={check.id} className={check.met ? 'is-met' : ''}>
-              {renderIcon(check.met ? 'check_circle' : 'radio_button_unchecked', 18)}
+            <li key={check.id} className={check.met ? "is-met" : ""}>
+              {renderIcon(
+                check.met ? "check_circle" : "radio_button_unchecked",
+                18,
+              )}
               {check.label}
-              <span className="slpx-sr">{check.met ? ' (met)' : ' (not met)'}</span>
+              <span className="slpx-sr">
+                {check.met ? " (met)" : " (not met)"}
+              </span>
             </li>
           ))}
         </ul>
         {status && (
-          <p className={`slpx-status ${status.ok ? '' : 'is-bad'}`} role={status.ok ? 'status' : 'alert'}>
+          <p
+            className={`slpx-status ${status.ok ? "" : "is-bad"}`}
+            role={status.ok ? "status" : "alert"}
+          >
             {status.text}
           </p>
         )}
         <div className="slpx-actions">
           <span className="slpx-note">
-            {renderIcon('shield', 18)}
+            {renderIcon("shield", 18)}
             Passwords are checked by the server, never kept in this page.
           </span>
-          <button type="submit" className="slpc-btn slpc-btn-primary" disabled={!ready || change.isPending}>
-            {renderIcon('lock_reset', 18)}
-            {change.isPending ? 'Updating…' : 'Update password'}
+          <button
+            type="submit"
+            className="slpc-btn slpc-btn-primary"
+            disabled={!ready || change.isPending}
+          >
+            {renderIcon("lock_reset", 18)}
+            {change.isPending ? "Updating…" : "Update password"}
           </button>
         </div>
       </form>
 
       <div className="slpx-split">
         <p>
-          {renderIcon('forward_to_inbox', 20)}
+          {renderIcon("forward_to_inbox", 20)}
           Forgot your current password? Email a reset link to {me.email}.
         </p>
-        <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => { setResetStatus(null); reset.mutate() }} disabled={reset.isPending || !me.email}>
-          {reset.isPending ? 'Sending…' : 'Email me a reset link'}
+        <button
+          type="button"
+          className="slpc-btn slpc-btn-soft"
+          onClick={() => {
+            setResetStatus(null);
+            reset.mutate();
+          }}
+          disabled={reset.isPending || !me.email}
+        >
+          {reset.isPending ? "Sending…" : "Email me a reset link"}
         </button>
       </div>
       {resetStatus && (
-        <p className={`slpx-status ${resetStatus.ok ? '' : 'is-bad'}`} role={resetStatus.ok ? 'status' : 'alert'}>
+        <p
+          className={`slpx-status ${resetStatus.ok ? "" : "is-bad"}`}
+          role={resetStatus.ok ? "status" : "alert"}
+        >
           {resetStatus.text}
         </p>
       )}
       <p className="slpx-note">
-        {renderIcon('info', 18)}
+        {renderIcon("info", 18)}
         Two-factor authentication is not offered by the portal yet.
       </p>
     </div>
-  )
+  );
 }
 
 function DisplayTab() {
-  const [prefs, setPrefs] = useState(() => readDisplay())
-  const [saved, setSaved] = useState(true)
+  const [prefs, setPrefs] = useState(() => readDisplay());
+  const [saved, setSaved] = useState(true);
   const update = (patch) => {
-    const next = { ...prefs, ...patch }
-    setPrefs(next)
-    applyDisplay(next)
-    setSaved(saveDisplay(next))
-  }
-  const isDefault = prefs.size === DISPLAY_DEFAULTS.size && prefs.reduceMotion === DISPLAY_DEFAULTS.reduceMotion && prefs.highContrast === DISPLAY_DEFAULTS.highContrast
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    applyDisplay(next);
+    setSaved(saveDisplay(next));
+  };
+  const isDefault =
+    prefs.size === DISPLAY_DEFAULTS.size &&
+    prefs.reduceMotion === DISPLAY_DEFAULTS.reduceMotion &&
+    prefs.highContrast === DISPLAY_DEFAULTS.highContrast;
 
   return (
     <div className="slpx-panel">
       <div>
         <h2 className="slpx-h">Display &amp; accessibility</h2>
-        <p className="slpx-sub">These choices apply to this device and browser only, and take effect straight away.</p>
+        <p className="slpx-sub">
+          These choices apply to this device and browser only, and take effect
+          straight away.
+        </p>
       </div>
       <fieldset className="slpx-sizes">
         <legend className="slpx-label" style={{ marginBottom: 8 }}>
@@ -415,10 +663,22 @@ function DisplayTab() {
         </legend>
         {SIZES.map((size) => (
           <label key={size} className="slpx-size">
-            <input type="radio" name="interface-size" value={size} checked={prefs.size === size} onChange={() => update({ size })} />
+            <input
+              type="radio"
+              name="interface-size"
+              value={size}
+              checked={prefs.size === size}
+              onChange={() => update({ size })}
+            />
             <span>
               {SIZE_LABELS[size]}
-              <small>{size === 100 ? 'The default layout.' : size === 110 ? 'A little larger text and controls.' : 'Highest legibility on dense screens.'}</small>
+              <small>
+                {size === 100
+                  ? "The default layout."
+                  : size === 110
+                    ? "A little larger text and controls."
+                    : "Highest legibility on dense screens."}
+              </small>
             </span>
           </label>
         ))}
@@ -426,88 +686,147 @@ function DisplayTab() {
       <div className="slpx-toggle">
         <div>
           <strong id="sw-contrast">High contrast</strong>
-          <span className="slpx-help">Darkens secondary text and borders for easier reading.</span>
+          <span className="slpx-help">
+            Darkens secondary text and borders for easier reading.
+          </span>
         </div>
-        <button type="button" role="switch" aria-checked={prefs.highContrast} aria-labelledby="sw-contrast" className="slpx-sw" onClick={() => update({ highContrast: !prefs.highContrast })} />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={prefs.highContrast}
+          aria-labelledby="sw-contrast"
+          className="slpx-sw"
+          onClick={() => update({ highContrast: !prefs.highContrast })}
+        />
       </div>
       <div className="slpx-toggle">
         <div>
           <strong id="sw-motion">Reduced motion</strong>
-          <span className="slpx-help">Turns off animated transitions across the portal.</span>
+          <span className="slpx-help">
+            Turns off animated transitions across the portal.
+          </span>
         </div>
-        <button type="button" role="switch" aria-checked={prefs.reduceMotion} aria-labelledby="sw-motion" className="slpx-sw" onClick={() => update({ reduceMotion: !prefs.reduceMotion })} />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={prefs.reduceMotion}
+          aria-labelledby="sw-motion"
+          className="slpx-sw"
+          onClick={() => update({ reduceMotion: !prefs.reduceMotion })}
+        />
       </div>
       {!saved && (
         <p className="slpx-status is-bad" role="alert">
-          This browser would not keep your choices, so they will reset when you reload.
+          This browser would not keep your choices, so they will reset when you
+          reload.
         </p>
       )}
       <div className="slpx-actions">
         <span className="slpx-note">
-          {renderIcon('devices', 18)}
+          {renderIcon("devices", 18)}
           Saved on this device
         </span>
-        <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => update({ ...DISPLAY_DEFAULTS })} disabled={isDefault}>
+        <button
+          type="button"
+          className="slpc-btn slpc-btn-soft"
+          onClick={() => update({ ...DISPLAY_DEFAULTS })}
+          disabled={isDefault}
+        >
           Reset to defaults
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 function SessionsTab({ me }) {
-  const [asking, setAsking] = useState(false)
-  const [status, setStatus] = useState(null)
+  const [asking, setAsking] = useState(false);
+  const [status, setStatus] = useState(null);
   const others = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.auth.signOut({ scope: 'others' })
-      if (error) throw error
+      const { error } = await supabase.auth.signOut({ scope: "others" });
+      if (error) throw error;
     },
     onSuccess: () => {
-      setAsking(false)
-      setStatus({ ok: true, text: 'All other devices have been signed out. This device stays signed in.' })
+      setAsking(false);
+      setStatus({
+        ok: true,
+        text: "All other devices have been signed out. This device stays signed in.",
+      });
     },
     onError: () => {
-      setAsking(false)
-      setStatus({ ok: false, text: 'Other devices could not be signed out. Please try again.' })
+      setAsking(false);
+      setStatus({
+        ok: false,
+        text: "Other devices could not be signed out. Please try again.",
+      });
     },
-  })
+  });
   // scope 'local' ends only this browser; the default would end every device.
   const leave = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.auth.signOut({ scope: 'local' })
-      if (error) throw error
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
     },
-    onError: () => setStatus({ ok: false, text: 'You could not be signed out. Please try again.' }),
-  })
+    onError: () =>
+      setStatus({
+        ok: false,
+        text: "You could not be signed out. Please try again.",
+      }),
+  });
 
   return (
     <div className="slpx-panel">
       <div>
         <h2 className="slpx-h">Sessions</h2>
-        <p className="slpx-sub">Sign out of this device, or end every other place your account is signed in.</p>
+        <p className="slpx-sub">
+          Sign out of this device, or end every other place your account is
+          signed in.
+        </p>
       </div>
       <div className="slpx-session">
         <div className="slpx-session-main">
-          {renderIcon('laptop_mac', 24)}
+          {renderIcon("laptop_mac", 24)}
           <div>
             <strong>This device</strong>
             <span className="slpx-help">Signed in as {me.email}</span>
           </div>
         </div>
-        <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => leave.mutate()} disabled={leave.isPending}>
-          {renderIcon('logout', 18)}
-          {leave.isPending ? 'Signing out…' : 'Log out'}
+        <button
+          type="button"
+          className="slpc-btn slpc-btn-soft"
+          onClick={() => leave.mutate()}
+          disabled={leave.isPending}
+        >
+          {renderIcon("logout", 18)}
+          {leave.isPending ? "Signing out…" : "Log out"}
         </button>
       </div>
       {asking ? (
-        <div className="slpx-confirm" role="alertdialog" aria-label="Confirm sign out of other devices">
-          <span>Sign out every other device? Anyone using them will need to sign in again.</span>
+        <div
+          className="slpx-confirm"
+          role="alertdialog"
+          aria-label="Confirm sign out of other devices"
+        >
+          <span>
+            Sign out every other device? Anyone using them will need to sign in
+            again.
+          </span>
           <span className="slpx-row-btns">
-            <button type="button" className="slpc-btn slpc-btn-primary" onClick={() => others.mutate()} disabled={others.isPending}>
-              {others.isPending ? 'Signing out…' : 'Yes, sign them out'}
+            <button
+              type="button"
+              className="slpc-btn slpc-btn-primary"
+              onClick={() => others.mutate()}
+              disabled={others.isPending}
+            >
+              {others.isPending ? "Signing out…" : "Yes, sign them out"}
             </button>
-            <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => setAsking(false)} disabled={others.isPending}>
+            <button
+              type="button"
+              className="slpc-btn slpc-btn-soft"
+              onClick={() => setAsking(false)}
+              disabled={others.isPending}
+            >
               Keep them
             </button>
           </span>
@@ -515,38 +834,51 @@ function SessionsTab({ me }) {
       ) : (
         <div className="slpx-split">
           <p>
-            {renderIcon('no_encryption', 20)}
+            {renderIcon("no_encryption", 20)}
             Lost a device or used a shared computer? End all other sessions.
           </p>
-          <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => { setStatus(null); setAsking(true) }}>
+          <button
+            type="button"
+            className="slpc-btn slpc-btn-soft"
+            onClick={() => {
+              setStatus(null);
+              setAsking(true);
+            }}
+          >
             Sign out other devices
           </button>
         </div>
       )}
       {status && (
-        <p className={`slpx-status ${status.ok ? '' : 'is-bad'}`} role={status.ok ? 'status' : 'alert'}>
+        <p
+          className={`slpx-status ${status.ok ? "" : "is-bad"}`}
+          role={status.ok ? "status" : "alert"}
+        >
           {status.text}
         </p>
       )}
       <p className="slpx-note">
-        {renderIcon('info', 18)}
-        A list of individual devices is not available yet.
+        {renderIcon("info", 18)}A list of individual devices is not available
+        yet.
       </p>
     </div>
-  )
+  );
 }
 
 /* ---------- page ---------- */
 
 export default function LecturerSettings() {
-  useCourseFonts()
-  const [tab, setTab] = useState('profile')
-  const [failedPhoto, setFailedPhoto] = useState('')
-  const meQuery = useQuery({ queryKey: ME_KEY, queryFn: () => api('/me') })
-  const me = meQuery.data
-  const details = me?.details ?? {}
-  const displayName = me?.full_name || me?.email || 'Lecturer'
-  const hasPhoto = typeof me?.avatar_url === 'string' && me.avatar_url.startsWith('https://') && failedPhoto !== me.avatar_url
+  useCourseFonts();
+  const [tab, setTab] = useState("profile");
+  const [failedPhoto, setFailedPhoto] = useState("");
+  const meQuery = useQuery({ queryKey: ME_KEY, queryFn: () => api("/me") });
+  const me = meQuery.data;
+  const details = me?.details ?? {};
+  const displayName = me?.full_name || me?.email || "Lecturer";
+  const hasPhoto =
+    typeof me?.avatar_url === "string" &&
+    me.avatar_url.startsWith("https://") &&
+    failedPhoto !== me.avatar_url;
 
   return (
     <div className="slpc" aria-label="Faculty settings and preferences">
@@ -557,26 +889,48 @@ export default function LecturerSettings() {
         <div className="slpx-head">
           <nav className="slpc-trail" aria-label="Breadcrumb">
             <Link to="/lecturer" className="slpc-trail-link">
-              {renderIcon('home', 16)}
+              {renderIcon("home", 16)}
               Dashboard
             </Link>
-            <span className="slpc-trail-sep">{renderIcon('chevron_right', 16)}</span>
+            <span className="slpc-trail-sep">
+              {renderIcon("chevron_right", 16)}
+            </span>
             <span className="slpc-trail-current">Settings</span>
           </nav>
           <h1 className="slpx-title">Faculty Settings &amp; Preferences</h1>
         </div>
 
-        <div className="slpc-card slpx-tabs" role="tablist" aria-label="Settings sections">
+        <div
+          className="slpc-card slpx-tabs"
+          role="tablist"
+          aria-label="Settings sections"
+        >
           {TABS.map((entry) => (
-            <button key={entry.id} type="button" role="tab" id={`tab-${entry.id}`} aria-selected={tab === entry.id} aria-controls="settings-panel" className="slpx-tab" onClick={() => setTab(entry.id)}>
+            <button
+              key={entry.id}
+              type="button"
+              role="tab"
+              id={`tab-${entry.id}`}
+              aria-selected={tab === entry.id}
+              aria-controls="settings-panel"
+              className="slpx-tab"
+              onClick={() => setTab(entry.id)}
+            >
               {renderIcon(entry.icon, 18)}
               {entry.label}
             </button>
           ))}
         </div>
 
-        {meQuery.isPending && <Skeleton height={220} label="Loading your profile" />}
-        {meQuery.isError && <ErrorCard message="Your profile could not be loaded." onRetry={() => meQuery.refetch()} />}
+        {meQuery.isPending && (
+          <Skeleton height={220} label="Loading your profile" />
+        )}
+        {meQuery.isError && (
+          <ErrorCard
+            message="Your profile could not be loaded."
+            onRetry={() => meQuery.refetch()}
+          />
+        )}
 
         {me && (
           <div className="slpx-layout">
@@ -585,18 +939,32 @@ export default function LecturerSettings() {
                 <div className="slpx-id-band" aria-hidden="true" />
                 <div className="slpx-id-body">
                   <span className="slpx-avatar" aria-hidden="true">
-                    {hasPhoto ? <img src={me.avatar_url} alt="" onError={() => setFailedPhoto(me.avatar_url)} /> : initials(me.full_name)}
+                    {hasPhoto ? (
+                      <img
+                        src={me.avatar_url}
+                        alt=""
+                        onError={() => setFailedPhoto(me.avatar_url)}
+                      />
+                    ) : (
+                      initials(me.full_name)
+                    )}
                   </span>
                   <h2 className="slpx-name">{displayName}</h2>
-                  {details.title && <p className="slpx-role">{details.title}</p>}
+                  {details.title && (
+                    <p className="slpx-role">{details.title}</p>
+                  )}
                   <div className="slpx-chips">
                     {details.staff_number && (
                       <span className="slpx-chip">
-                        {renderIcon('lock', 12)}#{details.staff_number}
+                        {renderIcon("lock", 12)}#{details.staff_number}
                       </span>
                     )}
                     {details.status && (
-                      <span className={`slpx-chip ${details.status === 'active' ? 'is-ok' : ''}`}>{sentenceCase(details.status)}</span>
+                      <span
+                        className={`slpx-chip ${details.status === "active" ? "is-ok" : ""}`}
+                      >
+                        {sentenceCase(details.status)}
+                      </span>
                     )}
                   </div>
                   <dl className="slpx-facts">
@@ -613,37 +981,54 @@ export default function LecturerSettings() {
                   </dl>
                 </div>
               </section>
-              <section className="slpc-card slpx-audit" aria-label="Audit record">
+              <section
+                className="slpc-card slpx-audit"
+                aria-label="Audit record"
+              >
                 <span className="slpc-eyebrow">Audit record</span>
                 {me.created_at && (
                   <p>
-                    {renderIcon('calendar_today', 16)}
-                    Profile created: <strong>{formatDate(me.created_at)}</strong>
+                    {renderIcon("calendar_today", 16)}
+                    Profile created:{" "}
+                    <strong>{formatDate(me.created_at)}</strong>
                   </p>
                 )}
                 {me.updated_at && (
                   <p>
-                    {renderIcon('update', 16)}
+                    {renderIcon("update", 16)}
                     Last updated: <strong>{formatDate(me.updated_at)}</strong>
                   </p>
                 )}
               </section>
             </aside>
 
-            <section className="slpc-card slpx-card" id="settings-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-              {tab === 'profile' && <ProfileTab me={me} />}
-              {tab === 'security' && <SecurityTab me={me} />}
-              {tab === 'notifications' && (
-                <PhasePanel icon="notifications_active" title="Notification preferences are not switched on yet" phase="Phase 7">
-                  Choosing which events notify you (submissions, reminders, announcements) arrives with notifications. Until then nothing here can be saved, so no switches are shown.
-                </PhasePanel>
+            <section
+              className="slpc-card slpx-card"
+              id="settings-panel"
+              role="tabpanel"
+              aria-labelledby={`tab-${tab}`}
+            >
+              {tab === "profile" && <ProfileTab me={me} />}
+              {tab === "security" && <SecurityTab me={me} />}
+              {tab === "notifications" && (
+                <div>
+                  <h2 className="slpc-h2">Your notifications</h2>
+                  <p className="slpc-muted">
+                    Alerts you receive appear under the bell icon at the top of
+                    the page, where you can mark them as read.
+                  </p>
+                  <p className="slpc-muted">
+                    Choosing which alerts to receive is not available in this
+                    version, so there are no switches here.
+                  </p>
+                </div>
               )}
-              {tab === 'display' && <DisplayTab />}
-              {tab === 'sessions' && <SessionsTab me={me} />}
+              {tab === "display" && <DisplayTab />}
+              {tab === "sessions" && <SessionsTab me={me} />}
             </section>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

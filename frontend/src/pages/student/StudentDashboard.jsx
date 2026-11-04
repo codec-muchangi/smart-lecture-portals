@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '../../app/AuthContext.jsx'
-import { api } from '../../services/apiClient.js'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../../app/AuthContext.jsx";
+import { api } from "../../services/apiClient.js";
 
 /*
  * Smart Lecture Portal: Student dashboard (page content)
@@ -25,33 +25,50 @@ import { api } from '../../services/apiClient.js'
 
 const FONT_LINKS = [
   {
-    id: 'slp-font-jakarta',
-    href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
+    id: "slp-font-jakarta",
+    href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
   },
   {
-    id: 'slp-font-symbols',
-    href: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap',
+    id: "slp-font-symbols",
+    href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap",
   },
   {
-    id: 'slp-font-mono',
-    href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap',
+    id: "slp-font-mono",
+    href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap",
   },
-]
+];
 
-const TASK_LIMIT = 5
-const FEED_LIMIT = 5
-const TASK_ICONS = ['terminal', 'schema', 'shield_lock', 'science', 'functions', 'article']
-const FEED_DOTS = ['primary', 'tertiary', 'secondary']
+const TASK_LIMIT = 5;
+const FEED_LIMIT = 5;
+const TASK_ICONS = [
+  "terminal",
+  "schema",
+  "shield_lock",
+  "science",
+  "functions",
+  "article",
+];
+const FEED_DOTS = ["primary", "tertiary", "secondary"];
 
 // Matches the backend upload rules (PDF, DOCX, PPTX, XLSX, CSV, PNG, JPG/JPEG, ZIP; 25 MB).
-const ALLOWED_EXTENSIONS = ['pdf', 'docx', 'pptx', 'xlsx', 'csv', 'png', 'jpg', 'jpeg', 'zip']
-const MAX_UPLOAD_MB = 25
+const ALLOWED_EXTENSIONS = [
+  "pdf",
+  "docx",
+  "pptx",
+  "xlsx",
+  "csv",
+  "png",
+  "jpg",
+  "jpeg",
+  "zip",
+];
+const MAX_UPLOAD_MB = 25;
 
 // Same query keys as AppShell, so courses and notifications are fetched once and shared.
-const COURSES_KEY = ['courses', 'assigned']
-const SUMMARY_KEY = 'student-dashboard'
-const fetchCourses = () => api('/courses?page_size=100')
-const fetchNotifications = () => api('/notifications')
+const COURSES_KEY = ["courses", "assigned"];
+const SUMMARY_KEY = "student-dashboard";
+const fetchCourses = () => api("/courses?page_size=100");
+const fetchNotifications = () => api("/notifications");
 
 function renderIcon(name, size) {
   return (
@@ -62,107 +79,136 @@ function renderIcon(name, size) {
     >
       {name}
     </span>
-  )
+  );
 }
 
 // The API may return a bare array or a paginated { items, total } object; accept both.
 function toList(data) {
-  if (Array.isArray(data)) return data
-  if (Array.isArray(data?.items)) return data.items
-  return []
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 }
 
 // The database already stores "Semester 1"; only add the word when it is missing.
 function formatSemester(value) {
-  const text = String(value ?? '').trim()
-  if (!text) return ''
-  return /^semester/i.test(text) ? text : `Semester ${text}`
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return /^semester/i.test(text) ? text : `Semester ${text}`;
 }
 
 function sentenceCase(value) {
-  const text = String(value ?? '')
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : ''
+  const text = String(value ?? "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }
 
 // "14 mins ago", "1 hour ago", "Yesterday", then a plain date.
 function timeAgo(value, now) {
-  const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return ''
-  const minutes = Math.floor((now - date.getTime()) / 60000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
-  if (hours < 48) return 'Yesterday'
-  return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const minutes = Math.floor((now - date.getTime()) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "min" : "mins"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  if (hours < 48) return "Yesterday";
+  return date.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function clock(date) {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 // "Tomorrow, 23:59", "Today, 09:00" or "Feb 27, 23:59".
 function formatDue(value, now) {
-  const due = new Date(value)
-  if (!value || Number.isNaN(due.getTime())) return ''
-  const today = new Date(now)
-  const tomorrow = new Date(now)
-  tomorrow.setDate(today.getDate() + 1)
-  let day = due.toLocaleDateString([], { month: 'short', day: 'numeric' })
-  if (sameDay(due, today)) day = 'Today'
-  else if (sameDay(due, tomorrow)) day = 'Tomorrow'
-  return `${day}, ${clock(due)}`
+  const due = new Date(value);
+  if (!value || Number.isNaN(due.getTime())) return "";
+  const today = new Date(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(today.getDate() + 1);
+  let day = due.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (sameDay(due, today)) day = "Today";
+  else if (sameDay(due, tomorrow)) day = "Tomorrow";
+  return `${day}, ${clock(due)}`;
 }
 
 // Urgency drives the label, the pill colour and the card's accent bar.
 function dueInfo(value, now) {
-  const due = new Date(value)
-  if (!value || Number.isNaN(due.getTime())) return { label: '', tone: 'later' }
-  const diff = due.getTime() - now
-  if (diff < 0) return { label: 'Overdue', tone: 'urgent' }
-  const minutes = Math.max(1, Math.ceil(diff / 60000))
-  if (minutes < 60) return { label: `Due in ${minutes} ${minutes === 1 ? 'min' : 'mins'}`, tone: 'urgent' }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 48) return { label: `Due in ${hours} ${hours === 1 ? 'hour' : 'hours'}`, tone: 'urgent' }
-  const days = Math.floor(diff / 86400000)
-  if (days < 7) return { label: `Due in ${days} days`, tone: 'soon' }
-  if (days < 14) return { label: 'Due Next Week', tone: 'later' }
-  return { label: `Due ${due.toLocaleDateString([], { month: 'short', day: 'numeric' })}`, tone: 'later' }
+  const due = new Date(value);
+  if (!value || Number.isNaN(due.getTime()))
+    return { label: "", tone: "later" };
+  const diff = due.getTime() - now;
+  if (diff < 0) return { label: "Overdue", tone: "urgent" };
+  const minutes = Math.max(1, Math.ceil(diff / 60000));
+  if (minutes < 60)
+    return {
+      label: `Due in ${minutes} ${minutes === 1 ? "min" : "mins"}`,
+      tone: "urgent",
+    };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48)
+    return {
+      label: `Due in ${hours} ${hours === 1 ? "hour" : "hours"}`,
+      tone: "urgent",
+    };
+  const days = Math.floor(diff / 86400000);
+  if (days < 7) return { label: `Due in ${days} days`, tone: "soon" };
+  if (days < 14) return { label: "Due Next Week", tone: "later" };
+  return {
+    label: `Due ${due.toLocaleDateString([], { month: "short", day: "numeric" })}`,
+    tone: "later",
+  };
 }
 
 function remaining(value, now) {
-  const diff = new Date(value).getTime() - now
-  if (!Number.isFinite(diff)) return ''
-  if (diff <= 0) return 'Deadline passed'
-  const totalMinutes = Math.floor(diff / 60000)
-  const days = Math.floor(totalMinutes / 1440)
-  const hours = Math.floor((totalMinutes % 1440) / 60)
-  const minutes = totalMinutes % 60
-  if (days > 0) return `${days}d ${hours}h Remaining`
-  return `${hours}h ${minutes}m Remaining`
+  const diff = new Date(value).getTime() - now;
+  if (!Number.isFinite(diff)) return "";
+  if (diff <= 0) return "Deadline passed";
+  const totalMinutes = Math.floor(diff / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h Remaining`;
+  return `${hours}h ${minutes}m Remaining`;
 }
 
 function extensionOf(name) {
-  const index = String(name ?? '').lastIndexOf('.')
-  return index < 0 ? '' : String(name).slice(index + 1).toLowerCase()
+  const index = String(name ?? "").lastIndexOf(".");
+  return index < 0
+    ? ""
+    : String(name)
+        .slice(index + 1)
+        .toLowerCase();
 }
 
 function validateFile(file) {
   if (!ALLOWED_EXTENSIONS.includes(extensionOf(file.name))) {
-    return `Unsupported file type. Use ${ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(', ')}.`
+    return `Unsupported file type. Use ${ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(", ")}.`;
   }
-  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) return `File is larger than ${MAX_UPLOAD_MB} MB.`
-  if (file.size === 0) return 'That file is empty.'
-  return ''
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024)
+    return `File is larger than ${MAX_UPLOAD_MB} MB.`;
+  if (file.size === 0) return "That file is empty.";
+  return "";
 }
 
 function formatSize(bytes) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /*
@@ -176,102 +222,120 @@ async function loadSummaries(courses) {
       const [assignments, marks] = await Promise.allSettled([
         api(`/courses/${course.id}/assignments?page_size=100`),
         api(`/courses/${course.id}/marks/me`),
-      ])
+      ]);
       return [
         course.id,
         {
-          assignments: assignments.status === 'fulfilled' ? toList(assignments.value) : null,
-          marks: marks.status === 'fulfilled' ? { percent: marks.value?.totals?.weighted_percent ?? null } : null,
+          assignments:
+            assignments.status === "fulfilled"
+              ? toList(assignments.value)
+              : null,
+          marks:
+            marks.status === "fulfilled"
+              ? { percent: marks.value?.totals?.weighted_percent ?? null }
+              : null,
         },
-      ]
+      ];
     }),
-  )
-  return Object.fromEntries(entries)
+  );
+  return Object.fromEntries(entries);
 }
 
 function Kpi({ icon, tone, pill, pillTone, children }) {
   return (
     <div className="slpt-kpi">
       <div className="slpt-kpi-top">
-        <span className={`slpt-kpi-icon is-${tone}`}>{renderIcon(icon, 22)}</span>
-        {pill && <span className={`slpt-pill ${pillTone ?? ''}`}>{pill}</span>}
+        <span className={`slpt-kpi-icon is-${tone}`}>
+          {renderIcon(icon, 22)}
+        </span>
+        {pill && <span className={`slpt-pill ${pillTone ?? ""}`}>{pill}</span>}
       </div>
       <div className="slpt-kpi-body">{children}</div>
     </div>
-  )
+  );
 }
 
 function SubmitModal({ task, now, onClose }) {
-  const queryClient = useQueryClient()
-  const dialogRef = useRef(null)
-  const inputRef = useRef(null)
-  const [file, setFile] = useState(null)
-  const [pledge, setPledge] = useState(false)
-  const [fileError, setFileError] = useState('')
-  const [dragging, setDragging] = useState(false)
+  const queryClient = useQueryClient();
+  const dialogRef = useRef(null);
+  const inputRef = useRef(null);
+  const [file, setFile] = useState(null);
+  const [pledge, setPledge] = useState(false);
+  const [fileError, setFileError] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (chosen) => {
-      const form = new FormData()
-      form.append('file', chosen)
-      return api(`/assignments/${task.id}/submissions`, { method: 'POST', form })
+      const form = new FormData();
+      form.append("file", chosen);
+      return api(`/assignments/${task.id}/submissions`, {
+        method: "POST",
+        form,
+      });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [SUMMARY_KEY] })
-      onClose(true)
+      await queryClient.invalidateQueries({ queryKey: [SUMMARY_KEY] });
+      onClose(true);
     },
-  })
+  });
 
   useEffect(() => {
-    const dialog = dialogRef.current
-    const previous = document.activeElement
-    dialog?.querySelector('button')?.focus()
+    const dialog = dialogRef.current;
+    const previous = document.activeElement;
+    dialog?.querySelector("button")?.focus();
 
     const onKey = (event) => {
-      if (event.key === 'Escape') {
-        onClose(false)
-        return
+      if (event.key === "Escape") {
+        onClose(false);
+        return;
       }
-      if (event.key !== 'Tab' || !dialog) return
-      const focusable = Array.from(dialog.querySelectorAll('button:not([disabled]), input, [href]')).filter(
-        (el) => el.type !== 'file',
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll("button:not([disabled]), input, [href]"),
+      ).filter((el) => el.type !== "file");
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
+        event.preventDefault();
+        last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
+        event.preventDefault();
+        first.focus();
       }
-    }
-    document.addEventListener('keydown', onKey)
+    };
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener('keydown', onKey)
-      if (previous && typeof previous.focus === 'function') previous.focus()
-    }
-  }, [onClose])
+      document.removeEventListener("keydown", onKey);
+      if (previous && typeof previous.focus === "function") previous.focus();
+    };
+  }, [onClose]);
 
   const choose = (chosen) => {
-    if (!chosen) return
-    const problem = validateFile(chosen)
-    setFileError(problem)
-    setFile(problem ? null : chosen)
-  }
+    if (!chosen) return;
+    const problem = validateFile(chosen);
+    setFileError(problem);
+    setFile(problem ? null : chosen);
+  };
 
   const onDrop = (event) => {
-    event.preventDefault()
-    setDragging(false)
-    choose(event.dataTransfer?.files?.[0])
-  }
+    event.preventDefault();
+    setDragging(false);
+    choose(event.dataTransfer?.files?.[0]);
+  };
 
-  const canSubmit = Boolean(file) && pledge && !mutation.isPending
-  const submitError = mutation.error?.message || (mutation.isError ? 'The upload failed. Please try again.' : '')
+  const canSubmit = Boolean(file) && pledge && !mutation.isPending;
+  const submitError =
+    mutation.error?.message ||
+    (mutation.isError ? "The upload failed. Please try again." : "");
 
   return (
-    <div className="slpt-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose(false)}>
+    <div
+      className="slpt-overlay"
+      onMouseDown={(event) =>
+        event.target === event.currentTarget && onClose(false)
+      }
+    >
       <div
         ref={dialogRef}
         className="slpt-modal"
@@ -286,40 +350,56 @@ function SubmitModal({ task, now, onClose }) {
               {task.title}
             </h2>
           </div>
-          <button type="button" className="slpt-icon-btn" aria-label="Close" onClick={() => onClose(false)}>
-            {renderIcon('close', 20)}
+          <button
+            type="button"
+            className="slpt-icon-btn"
+            aria-label="Close"
+            onClick={() => onClose(false)}
+          >
+            {renderIcon("close", 20)}
           </button>
         </div>
 
         <div className="slpt-modal-due">
           <span className="slpt-inline">
-            {renderIcon('schedule', 16)}
+            {renderIcon("schedule", 16)}
             Due: {formatDue(task.due_at, now)}
           </span>
-          <span className="slpt-code slpt-error-text">{remaining(task.due_at, now)}</span>
+          <span className="slpt-code slpt-error-text">
+            {remaining(task.due_at, now)}
+          </span>
         </div>
 
         <div
-          className={`slpt-drop ${dragging ? 'is-drag' : ''}`}
+          className={`slpt-drop ${dragging ? "is-drag" : ""}`}
           onDragOver={(event) => {
-            event.preventDefault()
-            setDragging(true)
+            event.preventDefault();
+            setDragging(true);
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
-          <span className="slpt-drop-icon">{renderIcon('upload_file', 32)}</span>
+          <span className="slpt-drop-icon">
+            {renderIcon("upload_file", 32)}
+          </span>
           {file ? (
             <p className="slpt-drop-title" data-testid="chosen-file">
-              {file.name} <span className="slpt-muted">({formatSize(file.size)})</span>
+              {file.name}{" "}
+              <span className="slpt-muted">({formatSize(file.size)})</span>
             </p>
           ) : (
             <p className="slpt-drop-title">Drag and drop your file here</p>
           )}
           <p className="slpt-muted">
-            Supported formats: {ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(', ')} (Maximum {MAX_UPLOAD_MB}MB)
+            Supported formats:{" "}
+            {ALLOWED_EXTENSIONS.map((ext) => ext.toUpperCase()).join(", ")}{" "}
+            (Maximum {MAX_UPLOAD_MB}MB)
           </p>
-          <button type="button" className="slpt-btn slpt-btn-soft" onClick={() => inputRef.current?.click()}>
+          <button
+            type="button"
+            className="slpt-btn slpt-btn-soft"
+            onClick={() => inputRef.current?.click()}
+          >
             Select File from Device
           </button>
           <input
@@ -327,10 +407,10 @@ function SubmitModal({ task, now, onClose }) {
             type="file"
             className="slpt-file"
             aria-label="Choose a file to submit"
-            accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(',')}
+            accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
             onChange={(event) => {
-              choose(event.target.files?.[0])
-              event.target.value = ''
+              choose(event.target.files?.[0]);
+              event.target.value = "";
             }}
           />
         </div>
@@ -348,8 +428,8 @@ function SubmitModal({ task, now, onClose }) {
             onChange={(event) => setPledge(event.target.checked)}
           />
           <label htmlFor="slpt-pledge">
-            I confirm that this submission is my own original work and complies with university academic
-            integrity and plagiarism regulations.
+            I confirm that this submission is my own original work and complies
+            with university academic integrity and plagiarism regulations.
           </label>
         </div>
 
@@ -360,7 +440,11 @@ function SubmitModal({ task, now, onClose }) {
         )}
 
         <div className="slpt-modal-actions">
-          <button type="button" className="slpt-btn slpt-btn-plain" onClick={() => onClose(false)}>
+          <button
+            type="button"
+            className="slpt-btn slpt-btn-plain"
+            onClick={() => onClose(false)}
+          >
             Cancel
           </button>
           <button
@@ -369,130 +453,169 @@ function SubmitModal({ task, now, onClose }) {
             disabled={!canSubmit}
             onClick={() => mutation.mutate(file)}
           >
-            {mutation.isPending ? 'Submitting...' : 'Confirm & Submit'}
+            {mutation.isPending ? "Submitting..." : "Confirm & Submit"}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function StudentDashboard() {
-  const { user } = useAuth()
-  const [now, setNow] = useState(() => Date.now())
-  const [activeTask, setActiveTask] = useState(null)
-  const [notice, setNotice] = useState('')
+  const { user } = useAuth();
+  const [now, setNow] = useState(() => Date.now());
+  const [activeTask, setActiveTask] = useState(null);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     FONT_LINKS.forEach(({ id, href }) => {
-      if (document.getElementById(id)) return
-      const link = document.createElement('link')
-      link.id = id
-      link.rel = 'stylesheet'
-      link.href = href
-      document.head.appendChild(link)
-    })
-  }, [])
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    });
+  }, []);
 
   // Keep "Due in 18 hours" and "35 mins ago" fresh without refetching.
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60000)
-    return () => clearInterval(timer)
-  }, [])
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const coursesQuery = useQuery({ queryKey: COURSES_KEY, queryFn: fetchCourses })
-  const courses = useMemo(() => toList(coursesQuery.data), [coursesQuery.data])
-  const courseIds = courses.map((course) => course.id).join(',')
+  const coursesQuery = useQuery({
+    queryKey: COURSES_KEY,
+    queryFn: fetchCourses,
+  });
+  const courses = useMemo(() => toList(coursesQuery.data), [coursesQuery.data]);
+  const courseIds = courses.map((course) => course.id).join(",");
 
   const summaryQuery = useQuery({
     queryKey: [SUMMARY_KEY, courseIds],
     queryFn: () => loadSummaries(courses),
     enabled: coursesQuery.isSuccess && courses.length > 0,
-  })
+  });
 
-    const timetableQuery = useQuery({
-    queryKey: ['timetable', 'week'],
-    queryFn: () => api('/timetable'),
-  })
-  const localToday = new Date()
-  const todayIso = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, '0')}-${String(localToday.getDate()).padStart(2, '0')}`
-  const todayClasses = (timetableQuery.data?.items ?? []).filter((entry) => entry.date === todayIso)
+  const timetableQuery = useQuery({
+    queryKey: ["timetable", "week"],
+    queryFn: () => api("/timetable"),
+  });
+  const localToday = new Date();
+  const todayIso = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, "0")}-${String(localToday.getDate()).padStart(2, "0")}`;
+  const todayClasses = (timetableQuery.data?.items ?? []).filter(
+    (entry) => entry.date === todayIso,
+  );
 
-    const dashboardQuery = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api('/dashboard'),
-  })
-  const attendanceRows = dashboardQuery.data?.attendance_summary ?? []
-  const attendanceByCourse = Object.fromEntries(attendanceRows.map((row) => [row.course_id, row]))
-  const totalCounted = attendanceRows.reduce((sum, row) => sum + row.counted_sessions, 0)
-  const totalAttended = attendanceRows.reduce((sum, row) => sum + row.attended, 0)
-  const overallPct = totalCounted > 0 ? Math.round((totalAttended / totalCounted) * 1000) / 10 : null
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => api("/dashboard"),
+  });
+  const attendanceRows = dashboardQuery.data?.attendance_summary ?? [];
+  const attendanceByCourse = Object.fromEntries(
+    attendanceRows.map((row) => [row.course_id, row]),
+  );
+  const totalCounted = attendanceRows.reduce(
+    (sum, row) => sum + row.counted_sessions,
+    0,
+  );
+  const totalAttended = attendanceRows.reduce(
+    (sum, row) => sum + row.attended,
+    0,
+  );
+  const overallPct =
+    totalCounted > 0
+      ? Math.round((totalAttended / totalCounted) * 1000) / 10
+      : null;
+  const announcementRows = (dashboardQuery.data?.announcements ?? []).slice(
+    0,
+    3,
+  );
   // Not live until Phase 7; a failure here must never break the page.
   const notificationsQuery = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ["notifications"],
     queryFn: fetchNotifications,
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
-  })
+  });
 
   const retry = () => {
-    coursesQuery.refetch()
-    if (summaryQuery.isError) summaryQuery.refetch()
-  }
+    coursesQuery.refetch();
+    if (summaryQuery.isError) summaryQuery.refetch();
+  };
 
-  const summaries = useMemo(() => summaryQuery.data ?? {}, [summaryQuery.data])
-  const summariesPending = courses.length > 0 && summaryQuery.isPending
-  const ready = coursesQuery.isSuccess && !summariesPending
+  const summaries = useMemo(() => summaryQuery.data ?? {}, [summaryQuery.data]);
+  const summariesPending = courses.length > 0 && summaryQuery.isPending;
+  const ready = coursesQuery.isSuccess && !summariesPending;
 
-  const firstName = String(user?.full_name ?? '').trim().split(/\s+/)[0] || 'there'
+  const firstName =
+    String(user?.full_name ?? "")
+      .trim()
+      .split(/\s+/)[0] || "there";
 
-  const credits = courses.reduce((sum, course) => sum + (Number(course.credit_hours) || 0), 0)
-  const term = courses[0] ? formatSemester(courses[0].semester) : ''
+  const credits = courses.reduce(
+    (sum, course) => sum + (Number(course.credit_hours) || 0),
+    0,
+  );
+  const term = courses[0] ? formatSemester(courses[0].semester) : "";
 
-  const assignmentsKnown = courses.every((course) => Array.isArray(summaries[course.id]?.assignments))
+  const assignmentsKnown = courses.every((course) =>
+    Array.isArray(summaries[course.id]?.assignments),
+  );
 
   const tasks = useMemo(() => {
-    const list = []
+    const list = [];
     courses.forEach((course, index) => {
       toList(summaries[course.id]?.assignments).forEach((assignment) => {
-        if (assignment.state !== 'open') return
-        list.push({ ...assignment, course_code: course.course_code, icon: TASK_ICONS[index % TASK_ICONS.length] })
-      })
-    })
-    return list.sort((a, b) => new Date(a.due_at) - new Date(b.due_at))
-  }, [courses, summaries])
+        if (assignment.state !== "open") return;
+        list.push({
+          ...assignment,
+          course_code: course.course_code,
+          icon: TASK_ICONS[index % TASK_ICONS.length],
+        });
+      });
+    });
+    return list.sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+  }, [courses, summaries]);
 
-  const pending = tasks.filter((task) => !task.my_submission)
-  const nextDue = pending[0] ?? null
-  const weekAhead = now + 7 * 86400000
-  const laterThisWeek = pending.slice(1).filter((task) => new Date(task.due_at).getTime() <= weekAhead).length
-  const visibleTasks = tasks.slice(0, TASK_LIMIT)
+  const pending = tasks.filter((task) => !task.my_submission);
+  const nextDue = pending[0] ?? null;
+  const weekAhead = now + 7 * 86400000;
+  const laterThisWeek = pending
+    .slice(1)
+    .filter((task) => new Date(task.due_at).getTime() <= weekAhead).length;
+  const visibleTasks = tasks.slice(0, TASK_LIMIT);
 
   const percents = courses
     .map((course) => summaries[course.id]?.marks?.percent)
-    .filter((value) => typeof value === 'number')
-  const average = percents.length ? percents.reduce((sum, value) => sum + value, 0) / percents.length : null
-  const marksUnknown = courses.some((course) => !summaries[course.id]?.marks)
+    .filter((value) => typeof value === "number");
+  const average = percents.length
+    ? percents.reduce((sum, value) => sum + value, 0) / percents.length
+    : null;
+  const marksUnknown = courses.some((course) => !summaries[course.id]?.marks);
 
-  const notifications = notificationsQuery.isSuccess ? toList(notificationsQuery.data) : null
-  const feedMissing = notificationsQuery.error?.status === 404
-  const weekday = new Date(now).toLocaleDateString([], { weekday: 'short' })
+  const notifications = notificationsQuery.isSuccess
+    ? toList(notificationsQuery.data)
+    : null;
+  const feedMissing = notificationsQuery.error?.status === 404;
+  const weekday = new Date(now).toLocaleDateString([], { weekday: "short" });
 
-  let subtitle = 'Loading your workspace…'
+  let subtitle = "Loading your workspace…";
   if (ready && assignmentsKnown) {
     subtitle =
       pending.length > 0
-        ? `You have ${pending.length} pending ${pending.length === 1 ? 'submission' : 'submissions'}.`
-        : 'Your scholarly workspace is up to date.'
+        ? `You have ${pending.length} pending ${pending.length === 1 ? "submission" : "submissions"}.`
+        : "Your scholarly workspace is up to date.";
   } else if (ready) {
-    subtitle = 'Some of your assignments could not be loaded.'
+    subtitle = "Some of your assignments could not be loaded.";
   }
 
   const closeModal = (submitted) => {
-    setActiveTask(null)
-    if (submitted === true) setNotice('Submission received. Your file was uploaded successfully.')
-  }
+    setActiveTask(null);
+    if (submitted === true)
+      setNotice("Submission received. Your file was uploaded successfully.");
+  };
 
   return (
     <div className="slpt">
@@ -507,17 +630,28 @@ function StudentDashboard() {
 
       {notice && (
         <p className="slpt-notice" role="status">
-          {renderIcon('check_circle', 18)}
+          {renderIcon("check_circle", 18)}
           <span>{notice}</span>
-          <button type="button" className="slpt-icon-btn" aria-label="Dismiss message" onClick={() => setNotice('')}>
-            {renderIcon('close', 16)}
+          <button
+            type="button"
+            className="slpt-icon-btn"
+            aria-label="Dismiss message"
+            onClick={() => setNotice("")}
+          >
+            {renderIcon("close", 16)}
           </button>
         </p>
       )}
 
       <div className="slpt-kpis">
-        <Kpi icon="auto_stories" tone="mid" pill={coursesQuery.isSuccess ? `${credits} Credits` : null}>
-          <div className="slpt-kpi-value">{coursesQuery.isSuccess ? `${courses.length} Active` : '—'}</div>
+        <Kpi
+          icon="auto_stories"
+          tone="mid"
+          pill={coursesQuery.isSuccess ? `${credits} Credits` : null}
+        >
+          <div className="slpt-kpi-value">
+            {coursesQuery.isSuccess ? `${courses.length} Active` : "—"}
+          </div>
           <div className="slpt-kpi-foot">
             <span>Enrolled Modules</span>
             <span className="slpt-mono slpt-accent-secondary">{term}</span>
@@ -527,19 +661,31 @@ function StudentDashboard() {
         <Kpi
           icon="hourglass_top"
           tone="fixed"
-          pill={ready && assignmentsKnown && nextDue ? dueInfo(nextDue.due_at, now).label : null}
+          pill={
+            ready && assignmentsKnown && nextDue
+              ? dueInfo(nextDue.due_at, now).label
+              : null
+          }
           pillTone="is-error"
         >
-          <div className={`slpt-kpi-value ${ready && pending.length > 0 ? 'is-danger' : ''}`}>
-            {ready && assignmentsKnown ? `${pending.length} Due Soon` : '—'}
+          <div
+            className={`slpt-kpi-value ${ready && pending.length > 0 ? "is-danger" : ""}`}
+          >
+            {ready && assignmentsKnown ? `${pending.length} Due Soon` : "—"}
           </div>
           <div className="slpt-kpi-foot">
             <span>Pending Submissions</span>
             <span className="slpt-mono">
-              {!ready && 'Loading…'}
-              {ready && !assignmentsKnown && 'Could not load'}
-              {ready && assignmentsKnown && pending.length === 0 && 'All caught up'}
-              {ready && assignmentsKnown && pending.length > 0 && `${laterThisWeek} Later This Week`}
+              {!ready && "Loading…"}
+              {ready && !assignmentsKnown && "Could not load"}
+              {ready &&
+                assignmentsKnown &&
+                pending.length === 0 &&
+                "All caught up"}
+              {ready &&
+                assignmentsKnown &&
+                pending.length > 0 &&
+                `${laterThisWeek} Later This Week`}
             </span>
           </div>
         </Kpi>
@@ -560,15 +706,19 @@ function StudentDashboard() {
                 <span className="slpt-kpi-unit">%</span>
               </>
             ) : (
-              '—'
+              "—"
             )}
           </div>
           <div className="slpt-kpi-foot">
             <span>Average Mark</span>
             <span className="slpt-mono slpt-accent-primary">
-              {!ready && 'Loading…'}
-              {ready && average !== null && `${percents.length} ${percents.length === 1 ? 'Course' : 'Courses'}`}
-              {ready && average === null && (marksUnknown ? 'Could not load' : 'None released')}
+              {!ready && "Loading…"}
+              {ready &&
+                average !== null &&
+                `${percents.length} ${percents.length === 1 ? "Course" : "Courses"}`}
+              {ready &&
+                average === null &&
+                (marksUnknown ? "Could not load" : "None released")}
             </span>
           </div>
         </Kpi>
@@ -583,7 +733,9 @@ function StudentDashboard() {
                   Upcoming Assignments &amp; Tasks
                 </h2>
                 {ready && assignmentsKnown && pending.length > 0 && (
-                  <span className="slpt-pill is-error">{pending.length} Pending</span>
+                  <span className="slpt-pill is-error">
+                    {pending.length} Pending
+                  </span>
                 )}
               </div>
               <Link to="/student/courses" className="slpt-link">
@@ -594,14 +746,22 @@ function StudentDashboard() {
             {coursesQuery.isError && (
               <div className="slpt-card slpt-state" role="alert">
                 <p>We could not load your courses.</p>
-                <button type="button" className="slpt-btn slpt-btn-soft" onClick={retry}>
+                <button
+                  type="button"
+                  className="slpt-btn slpt-btn-soft"
+                  onClick={retry}
+                >
                   Try again
                 </button>
               </div>
             )}
 
             {(coursesQuery.isPending || summariesPending) && (
-              <div className="slpt-list" aria-busy="true" aria-label="Loading assignments">
+              <div
+                className="slpt-list"
+                aria-busy="true"
+                aria-label="Loading assignments"
+              >
                 {[0, 1, 2].map((key) => (
                   <div key={key} className="slpt-card slpt-skeleton" />
                 ))}
@@ -614,60 +774,85 @@ function StudentDashboard() {
               </div>
             )}
 
-            {ready && courses.length > 0 && !assignmentsKnown && summaryQuery.isError && (
-              <div className="slpt-card slpt-state" role="alert">
-                <p>We could not load your assignments.</p>
-                <button type="button" className="slpt-btn slpt-btn-soft" onClick={retry}>
-                  Try again
-                </button>
-              </div>
-            )}
+            {ready &&
+              courses.length > 0 &&
+              !assignmentsKnown &&
+              summaryQuery.isError && (
+                <div className="slpt-card slpt-state" role="alert">
+                  <p>We could not load your assignments.</p>
+                  <button
+                    type="button"
+                    className="slpt-btn slpt-btn-soft"
+                    onClick={retry}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
 
-            {ready && assignmentsKnown && courses.length > 0 && visibleTasks.length === 0 && (
-              <div className="slpt-card slpt-state">
-                <p>No open assignments right now. Enjoy the breathing room.</p>
-              </div>
-            )}
+            {ready &&
+              assignmentsKnown &&
+              courses.length > 0 &&
+              visibleTasks.length === 0 && (
+                <div className="slpt-card slpt-state">
+                  <p>
+                    No open assignments right now. Enjoy the breathing room.
+                  </p>
+                </div>
+              )}
 
             {ready && visibleTasks.length > 0 && (
               <ul className="slpt-list">
                 {visibleTasks.map((task) => {
-                  const info = dueInfo(task.due_at, now)
-                  const submitted = Boolean(task.my_submission)
-                  const tone = submitted ? 'later' : info.tone
-                  const canSubmit = task.submissions_open !== false
+                  const info = dueInfo(task.due_at, now);
+                  const submitted = Boolean(task.my_submission);
+                  const tone = submitted ? "later" : info.tone;
+                  const canSubmit = task.submissions_open !== false;
                   return (
-                    <li key={task.id} className={`slpt-card slpt-task is-${tone}`}>
-                      <span className={`slpt-task-icon is-${tone}`}>{renderIcon(task.icon, 22)}</span>
+                    <li
+                      key={task.id}
+                      className={`slpt-card slpt-task is-${tone}`}
+                    >
+                      <span className={`slpt-task-icon is-${tone}`}>
+                        {renderIcon(task.icon, 22)}
+                      </span>
                       <div className="slpt-task-main">
                         <div className="slpt-task-meta">
-                          <span className="slpt-mono slpt-task-code">{task.course_code}</span>
-                          <span className={`slpt-pill is-${tone}`}>{info.label}</span>
-                          <span className="slpt-muted">Due {formatDue(task.due_at, now)}</span>
+                          <span className="slpt-mono slpt-task-code">
+                            {task.course_code}
+                          </span>
+                          <span className={`slpt-pill is-${tone}`}>
+                            {info.label}
+                          </span>
+                          <span className="slpt-muted">
+                            Due {formatDue(task.due_at, now)}
+                          </span>
                         </div>
                         <h3 className="slpt-task-title">
-                          <Link to={`/student/assignments/${task.id}`}>{task.title}</Link>
+                          <Link to={`/student/assignments/${task.id}`}>
+                            {task.title}
+                          </Link>
                         </h3>
                         <div className="slpt-task-facts slpt-mono">
                           <span className="slpt-inline">
-                            {renderIcon('scale', 15)}
+                            {renderIcon("scale", 15)}
                             {Number(task.max_marks)} pts
                           </span>
                           {task.has_attachment && (
                             <span className="slpt-inline">
-                              {renderIcon('attach_file', 15)}
-                              {task.attachment_name || 'Attachment'}
+                              {renderIcon("attach_file", 15)}
+                              {task.attachment_name || "Attachment"}
                             </span>
                           )}
                           {submitted && (
                             <span className="slpt-chip">
-                              {renderIcon('task_alt', 14)}
+                              {renderIcon("task_alt", 14)}
                               {sentenceCase(task.my_submission.status)}
                             </span>
                           )}
                           {!submitted && (
                             <span className="slpt-chip is-quiet">
-                              {renderIcon('pending', 14)}
+                              {renderIcon("pending", 14)}
                               Not Submitted
                             </span>
                           )}
@@ -677,21 +862,26 @@ function StudentDashboard() {
                         {canSubmit ? (
                           <button
                             type="button"
-                            className={`slpt-btn ${!submitted && tone === 'urgent' ? 'slpt-btn-primary' : 'slpt-btn-soft'}`}
+                            className={`slpt-btn ${!submitted && tone === "urgent" ? "slpt-btn-primary" : "slpt-btn-soft"}`}
                             onClick={() => setActiveTask(task)}
                           >
-                            {renderIcon(submitted ? 'edit' : 'file_upload', 18)}
-                            {submitted ? 'Replace Submission' : 'Upload Submission'}
+                            {renderIcon(submitted ? "edit" : "file_upload", 18)}
+                            {submitted
+                              ? "Replace Submission"
+                              : "Upload Submission"}
                           </button>
                         ) : (
-                          <Link to={`/student/assignments/${task.id}`} className="slpt-btn slpt-btn-soft">
-                            {renderIcon('visibility', 18)}
+                          <Link
+                            to={`/student/assignments/${task.id}`}
+                            className="slpt-btn slpt-btn-soft"
+                          >
+                            {renderIcon("visibility", 18)}
                             View Brief
                           </Link>
                         )}
                       </div>
                     </li>
-                  )
+                  );
                 })}
               </ul>
             )}
@@ -699,7 +889,10 @@ function StudentDashboard() {
         </div>
 
         <aside className="slpt-col" aria-label="Today at a glance">
-          <section className="slpt-card slpt-panel" aria-labelledby="slpt-schedule-title">
+          <section
+            className="slpt-card slpt-panel"
+            aria-labelledby="slpt-schedule-title"
+          >
             <div className="slpt-panel-head">
               <div>
                 <p className="slpt-eyebrow">Live Timetable</p>
@@ -707,26 +900,41 @@ function StudentDashboard() {
                   Today&apos;s Schedule · {weekday}
                 </h2>
               </div>
-              <span className="slpt-round">{renderIcon('calendar_today', 18)}</span>
+              <span className="slpt-round">
+                {renderIcon("calendar_today", 18)}
+              </span>
             </div>
-          {timetableQuery.isLoading && <p className="slpt-empty">Loading classes for today…</p>}
-{timetableQuery.isError && <p className="slpt-empty">We could not load classes for today right now.</p>}
-{timetableQuery.isSuccess && todayClasses.length === 0 && (
-  <p className="slpt-empty">No classes are scheduled for today.</p>
-)}
-{todayClasses.length > 0 && (
-  <ul>
-    {todayClasses.map((entry) => (
-      <li key={`${entry.entry_id}-${entry.date}`}>
-        <strong>{String(entry.start_time).slice(0, 5)} – {String(entry.end_time).slice(0, 5)}</strong>{' '}
-        {entry.course_code}{entry.room ? ` · ${entry.room}` : ''}
-      </li>
-    ))}
-  </ul>
-)}  
+            {timetableQuery.isLoading && (
+              <p className="slpt-empty">Loading classes for today…</p>
+            )}
+            {timetableQuery.isError && (
+              <p className="slpt-empty">
+                We could not load classes for today right now.
+              </p>
+            )}
+            {timetableQuery.isSuccess && todayClasses.length === 0 && (
+              <p className="slpt-empty">No classes are scheduled for today.</p>
+            )}
+            {todayClasses.length > 0 && (
+              <ul>
+                {todayClasses.map((entry) => (
+                  <li key={`${entry.entry_id}-${entry.date}`}>
+                    <strong>
+                      {String(entry.start_time).slice(0, 5)} –{" "}
+                      {String(entry.end_time).slice(0, 5)}
+                    </strong>{" "}
+                    {entry.course_code}
+                    {entry.room ? ` · ${entry.room}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
-          <section className="slpt-card slpt-panel" aria-labelledby="slpt-attendance-title">
+          <section
+            className="slpt-card slpt-panel"
+            aria-labelledby="slpt-attendance-title"
+          >
             <div className="slpt-panel-head">
               <div>
                 <p className="slpt-eyebrow is-secondary">Statutory Check</p>
@@ -737,77 +945,102 @@ function StudentDashboard() {
               <span className="slpt-pill slpt-mono">&gt; 75% Req.</span>
             </div>
             <div className="slpt-gauge">
-  <div className="slpt-ring" aria-hidden="true">
-    <svg viewBox="0 0 36 36">
-      <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="3.5" className="slpt-ring-track" />
-      {overallPct != null && (
-        <circle
-          cx="18"
-          cy="18"
-          r="15.9155"
-          fill="none"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          className={`slpt-ring-fill ${overallPct < 75 ? 'is-low' : ''}`}
-          strokeDasharray={`${Math.min(overallPct, 100)} 100`}
-        />
-      )}
-    </svg>
-    <span className="slpt-mono">{overallPct == null ? '—' : `${overallPct}%`}</span>
-  </div>
-  <div>
-    {dashboardQuery.isLoading && <p className="slpt-gauge-title">Loading attendance…</p>}
-    {dashboardQuery.isError && <p className="slpt-gauge-title">Attendance unavailable</p>}
-    {dashboardQuery.isSuccess && overallPct == null && (
-      <>
-        <p className="slpt-gauge-title">No sessions recorded yet</p>
-        <p className="slpt-muted">Your attendance appears once a lecturer marks a session.</p>
-      </>
-    )}
-    {overallPct != null && (
-      <>
-        <p className="slpt-gauge-title">
-          {overallPct >= 75 ? 'Good standing' : 'Below the 75% minimum'}
-        </p>
-        <p className="slpt-muted">
-          {totalAttended} of {totalCounted} counted sessions attended
-        </p>
-      </>
-    )}
-  </div>
-</div>
-{courses.length > 0 && (
-  <ul className="slpt-bars">
-    {courses.map((course) => {
-      const row = attendanceByCourse[course.id]
-      const pct = row?.attendance_pct ?? null
-      return (
-        <li key={course.id}>
-          <div className="slpt-bar-row">
-            <span>
-              {course.course_code} {course.course_name}
-            </span>
-            <span className="slpt-mono slpt-muted">{pct == null ? '—' : `${pct}%`}</span>
-          </div>
-          <div className="slpt-bar-track">
-            {pct != null && (
-              <div
-                className={`slpt-bar-fill ${pct < 75 ? 'is-low' : ''}`}
-                style={{ width: `${Math.min(pct, 100)}%` }}
-              />
+              <div className="slpt-ring" aria-hidden="true">
+                <svg viewBox="0 0 36 36">
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.9155"
+                    fill="none"
+                    strokeWidth="3.5"
+                    className="slpt-ring-track"
+                  />
+                  {overallPct != null && (
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.9155"
+                      fill="none"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      className={`slpt-ring-fill ${overallPct < 75 ? "is-low" : ""}`}
+                      strokeDasharray={`${Math.min(overallPct, 100)} 100`}
+                    />
+                  )}
+                </svg>
+                <span className="slpt-mono">
+                  {overallPct == null ? "—" : `${overallPct}%`}
+                </span>
+              </div>
+              <div>
+                {dashboardQuery.isLoading && (
+                  <p className="slpt-gauge-title">Loading attendance…</p>
+                )}
+                {dashboardQuery.isError && (
+                  <p className="slpt-gauge-title">Attendance unavailable</p>
+                )}
+                {dashboardQuery.isSuccess && overallPct == null && (
+                  <>
+                    <p className="slpt-gauge-title">No sessions recorded yet</p>
+                    <p className="slpt-muted">
+                      Your attendance appears once a lecturer marks a session.
+                    </p>
+                  </>
+                )}
+                {overallPct != null && (
+                  <>
+                    <p className="slpt-gauge-title">
+                      {overallPct >= 75
+                        ? "Good standing"
+                        : "Below the 75% minimum"}
+                    </p>
+                    <p className="slpt-muted">
+                      {totalAttended} of {totalCounted} counted sessions
+                      attended
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+            {courses.length > 0 && (
+              <ul className="slpt-bars">
+                {courses.map((course) => {
+                  const row = attendanceByCourse[course.id];
+                  const pct = row?.attendance_pct ?? null;
+                  return (
+                    <li key={course.id}>
+                      <div className="slpt-bar-row">
+                        <span>
+                          {course.course_code} {course.course_name}
+                        </span>
+                        <span className="slpt-mono slpt-muted">
+                          {pct == null ? "—" : `${pct}%`}
+                        </span>
+                      </div>
+                      <div className="slpt-bar-track">
+                        {pct != null && (
+                          <div
+                            className={`slpt-bar-fill ${pct < 75 ? "is-low" : ""}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
-          </div>
-        </li>
-      )
-    })}
-  </ul>
-)}
           </section>
 
-          <section className="slpt-card slpt-panel" aria-labelledby="slpt-notices-title">
+          <section
+            className="slpt-card slpt-panel"
+            aria-labelledby="slpt-notices-title"
+          >
             <div className="slpt-panel-head">
               <div className="slpt-inline">
-                <span className="slpt-accent-primary">{renderIcon('campaign', 20)}</span>
+                <span className="slpt-accent-primary">
+                  {renderIcon("campaign", 20)}
+                </span>
                 <h2 id="slpt-notices-title" className="slpt-h3">
                   Department Notices
                 </h2>
@@ -816,32 +1049,82 @@ function StudentDashboard() {
                 All
               </Link>
             </div>
-            <p className="slpt-empty">Announcements from your lecturers will appear here once they go live (Phase 7).</p>
+            {dashboardQuery.isLoading && (
+              <p className="slpt-empty">Loading announcements...</p>
+            )}
+            {dashboardQuery.isError && (
+              <p className="slpt-empty">
+                We could not load announcements right now.
+              </p>
+            )}
+            {dashboardQuery.isSuccess && announcementRows.length === 0 && (
+              <p className="slpt-empty">
+                No announcements have been published for your courses yet.
+              </p>
+            )}
+            {announcementRows.length > 0 && (
+              <ul>
+                {announcementRows.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p className="slpt-muted">
+                      {item.course_code}
+                      {item.published_at
+                        ? ` - ${new Date(item.published_at).toLocaleDateString()}`
+                        : ""}
+                    </p>
+                    <p>{item.preview}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
-          <section className="slpt-card slpt-panel" aria-labelledby="slpt-feed-title">
+          <section
+            className="slpt-card slpt-panel"
+            aria-labelledby="slpt-feed-title"
+          >
             <div className="slpt-panel-head">
               <h2 id="slpt-feed-title" className="slpt-h3">
                 Activity Stream
               </h2>
-              <span className="slpt-outline">{renderIcon('history', 18)}</span>
+              <span className="slpt-outline">{renderIcon("history", 18)}</span>
             </div>
-            {notificationsQuery.isPending && <div className="slpt-skeleton slpt-skeleton-sm" aria-busy="true" />}
+            {notificationsQuery.isPending && (
+              <div
+                className="slpt-skeleton slpt-skeleton-sm"
+                aria-busy="true"
+              />
+            )}
             {feedMissing && (
-              <p className="slpt-empty">Activity updates will appear here once notifications go live (Phase 7).</p>
+              <p className="slpt-empty">
+                Activity updates will appear here once notifications go live
+                (Phase 7).
+              </p>
             )}
             {notificationsQuery.isError && !feedMissing && (
-              <p className="slpt-empty">The activity feed is unavailable right now.</p>
+              <p className="slpt-empty">
+                The activity feed is unavailable right now.
+              </p>
             )}
-            {notifications && notifications.length === 0 && <p className="slpt-empty">You&apos;re all caught up.</p>}
+            {notifications && notifications.length === 0 && (
+              <p className="slpt-empty">You&apos;re all caught up.</p>
+            )}
             {notifications && notifications.length > 0 && (
               <ul className="slpt-feed">
                 {notifications.slice(0, FEED_LIMIT).map((item, index) => (
                   <li key={item.id ?? index}>
-                    <span className={`slpt-dot is-${FEED_DOTS[index % FEED_DOTS.length]}`} aria-hidden="true" />
+                    <span
+                      className={`slpt-dot is-${FEED_DOTS[index % FEED_DOTS.length]}`}
+                      aria-hidden="true"
+                    />
                     <div>
-                      <p className="slpt-feed-title">{item.title || item.message}</p>
-                      <p className="slpt-feed-time">{timeAgo(item.created_at, now)}</p>
+                      <p className="slpt-feed-title">
+                        {item.title || item.message}
+                      </p>
+                      <p className="slpt-feed-time">
+                        {timeAgo(item.created_at, now)}
+                      </p>
                     </div>
                   </li>
                 ))}
@@ -851,12 +1134,14 @@ function StudentDashboard() {
         </aside>
       </div>
 
-      {activeTask && <SubmitModal task={activeTask} now={now} onClose={closeModal} />}
+      {activeTask && (
+        <SubmitModal task={activeTask} now={now} onClose={closeModal} />
+      )}
     </div>
-  )
+  );
 }
 
-export default StudentDashboard
+export default StudentDashboard;
 
 const STYLES = `
 .slpt {
@@ -1128,4 +1413,4 @@ const STYLES = `
 @media (min-width: 1280px) {
   .slpt-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-`
+`;
