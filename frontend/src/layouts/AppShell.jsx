@@ -110,6 +110,7 @@ function AppShell({ role }) {
   const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [term, setTerm] = useState('')
+  const [failedPhoto, setFailedPhoto] = useState('')
 
   const base = `/${role}`
   const items = NAV[role] ?? NAV.student
@@ -308,7 +309,13 @@ function AppShell({ role }) {
                 <span className="slps-user-name">{name}</span>
                 {detailLine && <span className="slps-user-detail">{detailLine}</span>}
               </span>
-              <span className="slps-avatar">{renderIcon('person', 18)}</span>
+              <span className="slps-avatar">
+                {user?.avatar_url?.startsWith('https://') && failedPhoto !== user.avatar_url ? (
+                  <img src={user.avatar_url} alt="" onError={() => setFailedPhoto(user.avatar_url)} />
+                ) : (
+                  renderIcon('person', 18)
+                )}
+              </span>
             </Link>
           </div>
         </header>
@@ -503,6 +510,8 @@ const STYLES = `
   width: 36px; height: 36px; border-radius: 999px; background: var(--primary); color: var(--on-primary);
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
+.slps-avatar { overflow: hidden; }
+.slps-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* Content */
 .slps-main { flex: 1 1 auto; width: 100%; padding: calc(var(--header-h) + 1.5rem) 1rem 3rem; }

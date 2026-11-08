@@ -34,7 +34,9 @@ Note: the React app currently signs in directly with Supabase; the backend still
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/me` | A | `{id,role,full_name,email,phone,avatar_url,created_at,updated_at,details}`; `details` = student (`registration_number,program,year_of_study,status`) or lecturer (`staff_number,department,title,status`) |
-| PATCH | `/me` | A | Allowed: `full_name` (2-120, no control chars), `phone` (7-20 chars: digits, space, `+ - ( )`; `null` clears), `avatar_url` (https only; `null` clears). Any other field (role, email, id, registration/staff number, status) ⇒ 422. Empty body ⇒ 400. Only changed fields are written and audited (`profile.update`, old/new values) |
+| PATCH | `/me` | A | Allowed: `full_name` (2-120, no control chars), `phone` (7-20 chars: digits, space, `+ - ( )`; `null` clears). The photo is not edited here: use `POST /me/avatar`. Any other field (role, email, id, registration/staff number, status) ⇒ 422. Empty body ⇒ 400. Only changed fields are written and audited (`profile.update`, old/new values) |
+| POST | `/me/avatar` | A | Upload or replace your profile photo: `multipart/form-data` `file` (JPEG, PNG or WebP, max 2 MB). The type is decided from the first bytes of the file, never from its name or declared type. Empty, oversized or non-image files are rejected and nothing is stored. Saved in the public `avatars` bucket as `<user_id>/<random>.<ext>`; the previous photo is deleted. Returns the same body as `GET /me` |
+| DELETE | `/me/avatar` | A | Removes your profile photo (the file and the link). With no photo it changes nothing. Returns the same body as `GET /me` |
 
 ## Courses & enrollment — implemented in Phase 2
 Course scope rule (applies to every course-owned resource in later phases): lecturer ⇒ assigned to the course; student ⇒ **active** enrollment and course not `inactive`. Otherwise **404** (never 403) so other courses' existence is not revealed. A wrong-role call on a lecturer-only endpoint is **403**.

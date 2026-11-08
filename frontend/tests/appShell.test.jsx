@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi } from 'vitest'
@@ -110,4 +110,28 @@ test('student shell has student navigation and no New Material button', async ()
   expect(nav).not.toHaveTextContent('Materials Management')
   expect(screen.queryByRole('link', { name: /new material/i })).not.toBeInTheDocument()
   expect(screen.getByText('BSc Computer Science #STU001')).toBeInTheDocument()
+})
+
+test('header shows the signed-in user photo', () => {
+  auth.user = { ...LECTURER, avatar_url: 'https://example.com/me.jpg' }
+  mockApi({ notifications: [] })
+  const { container } = renderShell('lecturer', '/lecturer')
+  expect(container.querySelector('.slps-avatar img')).toHaveAttribute('src', 'https://example.com/me.jpg')
+})
+
+test('header shows the person icon when there is no photo', () => {
+  auth.user = { ...LECTURER, avatar_url: null }
+  mockApi({ notifications: [] })
+  const { container } = renderShell('lecturer', '/lecturer')
+  expect(container.querySelector('.slps-avatar')).not.toBeNull()
+  expect(container.querySelector('.slps-avatar img')).toBeNull()
+})
+
+test('header falls back to the icon when the photo does not load', () => {
+  auth.user = { ...LECTURER, avatar_url: 'https://example.com/missing.jpg' }
+  mockApi({ notifications: [] })
+  const { container } = renderShell('lecturer', '/lecturer')
+  fireEvent.error(container.querySelector('.slps-avatar img'))
+  expect(container.querySelector('.slps-avatar img')).toBeNull()
+  expect(container.querySelector('.slps-avatar svg, .slps-avatar span, .slps-avatar')).not.toBeNull()
 })

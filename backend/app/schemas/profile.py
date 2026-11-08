@@ -24,7 +24,6 @@ class ProfileUpdate(BaseModel):
 
     full_name: str | None = Field(None, min_length=2, max_length=120)
     phone: str | None = Field(None, max_length=32)
-    avatar_url: str | None = Field(None, max_length=500)
 
     @field_validator("full_name", mode="before")
     @classmethod
@@ -41,15 +40,6 @@ class ProfileUpdate(BaseModel):
         if not PHONE_RE.match(v):
             raise ValueError("must be a valid phone number (digits, spaces, +, -, parentheses; 7-20 chars)")
         return v
-
-    @field_validator("avatar_url")
-    @classmethod
-    def _avatar(cls, v):
-        if v is None or v == "":
-            return None
-        if not v.startswith("https://"):
-            raise ValueError("must be an https:// URL")
-        return _no_control_chars(v)
 
 
 class StudentDetails(BaseModel):

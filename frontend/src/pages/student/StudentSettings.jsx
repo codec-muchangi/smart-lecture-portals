@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../services/apiClient.js'
 import { supabase } from '../../services/supabase.js'
 import { useAuth } from '../../app/AuthContext.jsx'
+import ProfilePhotoControls from '../../components/ProfilePhotoControls.jsx'
 import { COURSE_STYLES, ErrorCard, Skeleton, initials, renderIcon, useCourseFonts } from '../../components/courseKit.jsx'
 import { DISPLAY_DEFAULTS, SIZES, applyDisplay, readDisplay, saveDisplay } from '../../utils/display.js'
 import { sentenceCase } from '../../utils/format.js'
@@ -18,14 +19,14 @@ import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, valid
  * - Renders inside AppShell, which already draws the sidebar and top bar.
  * - Uses only what the API provides (docs/API.md, "Profile" and "Auth"):
  *     GET   /me                      profile, email, student details (registration_number, program, year_of_study, status)
- *     PATCH /me                      only full_name, phone, avatar_url can change; the page sends only what changed
+ *     PATCH /me                      only full_name and phone can change (photos: POST/DELETE /me/avatar); the page sends only what changed
  *     POST  /auth/password/change    { current_password, new_password } -> 204; 400 with details per field
  *     POST  /auth/password/reset     { email } -> 202, same answer for any address
  *   plus Supabase sign-out: this device only (scope 'local'), or every device (scope 'global').
  * - Email, registration number, programme, year and status are read-only: the server rejects edits to them (422).
  * - The password rules shown are the server's: at least 8 characters, letters and digits, different from the current one.
  * - Interface size, reduced motion and high contrast are per-device settings kept in this browser (utils/display.js).
- * - Not in the API, so not drawn: photo upload (a https link is used instead), the biography field, notification
+ * - Not in the API, so not drawn: the biography field, notification
  *   subscriptions (Phase 7), theme/timezone/timestamp choices, session ids, locations and token details. Nothing
  *   here pretends otherwise.
  * - "Save changes" and "Discard changes" in the header act on the profile form. The password has its own button,
@@ -505,8 +506,8 @@ export default function StudentSettings() {
   const payload = me ? changedPayload(me, values) : {}
   const dirty = Object.keys(payload).length > 0
   const invalid = Object.values(clientErrors).some(Boolean)
-  const shownPhoto = values.avatar_url.trim()
-  const hasPhoto = shownPhoto.startsWith('https://') && !clientErrors.avatar_url && failedPhoto !== shownPhoto
+  const shownPhoto = me?.avatar_url ?? ''
+  const hasPhoto = shownPhoto.startsWith('https://') && failedPhoto !== shownPhoto
 
   const save = useMutation({
     mutationFn: (body) => api('/me', { method: 'PATCH', body }),
@@ -520,7 +521,7 @@ export default function StudentSettings() {
     onError: (error) => {
       const fields = detailsOf(error)
       const next = {}
-      ;['full_name', 'phone', 'avatar_url'].forEach((key) => {
+      ;['full_name', 'phone'].forEach((key) => {
         if (fields[key]) next[key] = firstText(fields[key])
       })
       setServerErrors(next)
@@ -598,20 +599,14 @@ export default function StudentSettings() {
             <div className="slpz-col">
               <form className="slpc-card slpz-section" id="set-profile" onSubmit={submit} noValidate aria-label="Profile form">
                 <SectionHead icon="badge" title="Student profile identity">
-                  Your name, phone and photo link are editable. Registry details are read-only.
+                  Your name and phone are editable, and your photo uploads as soon as you choose it. Registry details are read-only.
                 </SectionHead>
                 <div className="slpz-avatar-block">
                   <span className="slpz-avatar" aria-hidden="true">
                     {hasPhoto ? <img src={shownPhoto} alt="" onError={() => setFailedPhoto(shownPhoto)} /> : initials(values.full_name || me.full_name)}
                   </span>
                   <div className="slpz-avatar-main">
-                    <Field id="set-avatar" label="Profile photo link" icon="image" error={errors.avatar_url} help="An https:// link to an image. Photo uploads are not available yet.">
-                      <input id="set-avatar" className={`slpz-input ${errors.avatar_url ? 'is-bad' : ''}`} value={values.avatar_url} onChange={edit('avatar_url')} inputMode="url" autoComplete="off" aria-invalid={errors.avatar_url ? 'true' : undefined} />
-                    </Field>
-                    <button type="button" className="slpc-btn slpc-btn-soft" onClick={() => { setDraft({ ...draft, avatar_url: '' }); setServerErrors(without(serverErrors, 'avatar_url')); setStatus(null) }} disabled={!values.avatar_url.trim()}>
-                      {renderIcon('delete', 18)}
-                      Remove photo
-                    </button>
+                    <ProfilePhotoControls />
                   </div>
                 </div>
                 <div className="slpz-grid">
