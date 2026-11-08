@@ -64,7 +64,6 @@ function renderPage() {
 
 const name = () => screen.getByLabelText(/^Full name/)
 const phone = () => screen.getByLabelText(/^Mobile phone/)
-const photo = () => screen.getByLabelText(/^Profile photo link/)
 const saveProfile = () => screen.getByRole('button', { name: /Save profile changes/ })
 const saveAll = () => screen.getByRole('button', { name: 'Save changes' })
 const discardAll = () => screen.getByRole('button', { name: 'Discard changes' })
@@ -132,7 +131,7 @@ test('the profile form button saves too, and discard puts the saved values back'
   expect(patches()[0].body).toEqual({ full_name: 'Alex C. Chen' })
 })
 
-test('checks name, phone and photo link before sending anything', async () => {
+test('checks name and phone before sending anything', async () => {
   install()
   renderPage()
   await waitFor(() => expect(name()).toHaveValue('Alex Chen'))
@@ -142,14 +141,11 @@ test('checks name, phone and photo link before sending anything', async () => {
   fireEvent.change(name(), { target: { value: 'Alex' } })
   fireEvent.change(phone(), { target: { value: 'call me' } })
   expect(screen.getByText('Use 7 to 20 characters: digits, spaces, + - ( ).')).toBeInTheDocument()
-  fireEvent.change(phone(), { target: { value: '+254 700 000 000' } })
-  fireEvent.change(photo(), { target: { value: 'http://example.com/me.png' } })
-  expect(screen.getByText('Use a full https:// link, or leave it empty.')).toBeInTheDocument()
   expect(saveAll()).toBeDisabled()
-  fireEvent.change(photo(), { target: { value: 'https://example.com/me.png' } })
+  fireEvent.change(phone(), { target: { value: '+254 700 000 000' } })
   fireEvent.click(saveAll())
   await waitFor(() => expect(patches()).toHaveLength(1))
-  expect(patches()[0].body).toEqual({ full_name: 'Alex', phone: '+254 700 000 000', avatar_url: 'https://example.com/me.png' })
+  expect(patches()[0].body).toEqual({ full_name: 'Alex', phone: '+254 700 000 000' })
 })
 
 test('falls back to initials when the photo link does not load', async () => {
@@ -162,19 +158,76 @@ test('falls back to initials when the photo link does not load', async () => {
   expect(container.querySelector('.slpz-avatar')).toHaveTextContent('AC')
 })
 
-test('shows the photo from the link and can remove it', async () => {
+const photoInput = () => screen.getByLabelText('Profile photo file')
+const pick = (file) => fireEvent.change(photoInput(), { target: { files: [file] } })
+const image = (type = 'image/png', size = 10) =>
+  new File([new Uint8Array(size)], 'me.png', { type })
+const photoPosts = () => calls.filter((call) => call.key === 'POST /me/avatar')
+
+test('shows the uploaded photo and removes it through the photo endpoint', async () => {
   me = { ...ME, avatar_url: 'https://example.com/alex.png' }
-  install()
+  install({
+    'DELETE /me/avatar': () => {
+      me = { ...me, avatar_url: null }
+      return me
+    },
+  })
   const { container } = renderPage()
-  await waitFor(() => expect(photo()).toHaveValue('https://example.com/alex.png'))
-  expect(container.querySelector('.slpz-avatar img')).toHaveAttribute('src', 'https://example.com/alex.png')
+  await waitFor(() =>
+    expect(container.querySelector('.slpz-avatar img')).toHaveAttribute('src', 'https://example.com/alex.png'),
+  )
+  expect(screen.queryByLabelText(/Profile photo link/)).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /Remove photo/ }))
-  expect(photo()).toHaveValue('')
-  expect(container.querySelector('.slpz-avatar img')).toBeNull()
+  await waitFor(() => expect(container.querySelector('.slpz-avatar img')).toBeNull())
+  expect(calls.some((call) => call.key === 'DELETE /me/avatar')).toBe(true)
+  expect(auth.refresh).toHaveBeenCalled()
   expect(screen.getByRole('button', { name: /Remove photo/ })).toBeDisabled()
-  fireEvent.click(saveAll())
-  await waitFor(() => expect(patches()).toHaveLength(1))
-  expect(patches()[0].body).toEqual({ avatar_url: null })
+  expect(patches()).toHaveLength(0)
+})
+
+test('uploads a chosen photo as a file and shows it', async () => {
+  install({
+    'POST /me/avatar': () => {
+      me = { ...me, avatar_url: 'https://example.com/new.png' }
+      return me
+    },
+  })
+  const { container } = renderPage()
+  await waitFor(() => expect(name()).toHaveValue('Alex Chen'))
+  const file = image('image/png')
+  pick(file)
+  await waitFor(() =>
+    expect(container.querySelector('.slpz-avatar img')).toHaveAttribute('src', 'https://example.com/new.png'),
+  )
+  const sent = apiMock.mock.calls.find(([path]) => path === '/me/avatar')[1]
+  expect(sent.method).toBe('POST')
+  expect(sent.form).toBeInstanceOf(FormData)
+  expect(sent.form.get('file').name).toBe('me.png')
+  expect(screen.getByText('Photo updated.')).toBeInTheDocument()
+  expect(auth.refresh).toHaveBeenCalled()
+  expect(patches()).toHaveLength(0)
+})
+
+test('refuses a wrong type or an oversized photo without calling the server', async () => {
+  install()
+  renderPage()
+  await waitFor(() => expect(name()).toHaveValue('Alex Chen'))
+  pick(image('application/pdf'))
+  expect(screen.getByText('Use a JPEG, PNG or WebP photo.')).toBeInTheDocument()
+  pick(image('image/png', 2 * 1024 * 1024 + 1))
+  expect(screen.getByText('The photo must be 2 MB or smaller.')).toBeInTheDocument()
+  expect(photoPosts()).toHaveLength(0)
+})
+
+test('shows the server message when the upload fails', async () => {
+  install({ 'POST /me/avatar': httpError(422, {}, 'That file is not a JPEG, PNG or WebP image.') })
+  renderPage()
+  await waitFor(() => expect(name()).toHaveValue('Alex Chen'))
+  pick(image('image/png'))
+  await waitFor(() =>
+    expect(screen.getByText('That file is not a JPEG, PNG or WebP image.')).toBeInTheDocument(),
+  )
+  expect(photoPosts()).toHaveLength(1)
 })
 
 test('shows field messages the server sends back', async () => {

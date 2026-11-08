@@ -107,8 +107,6 @@ def test_protected_fields_are_rejected(client, db, payload):
         ({"full_name": "Bad\x00Name"}, "full_name"),
         ({"phone": "abc"}, "phone"),
         ({"phone": "123"}, "phone"),
-        ({"avatar_url": "http://insecure.test/a.png"}, "avatar_url"),
-        ({"avatar_url": "javascript:alert(1)"}, "avatar_url"),
     ],
 )
 def test_invalid_values_return_field_level_errors(client, db, payload, field):
@@ -117,9 +115,12 @@ def test_invalid_values_return_field_level_errors(client, db, payload, field):
     assert field in r.json()["details"]
 
 
-def test_https_avatar_is_accepted(client, db):
-    r = client.patch("/api/v1/me", headers=bearer(S1), json={"avatar_url": "https://cdn.test/a.png"})
-    assert r.status_code == 200 and r.json()["avatar_url"] == "https://cdn.test/a.png"
+def test_avatar_link_is_no_longer_accepted(client, db):
+    """Photos are uploaded (POST /me/avatar); PATCH /me must refuse any link."""
+    payload = {"avatar_url": "https://cdn.test/a.png"}
+    r = client.patch("/api/v1/me", headers=bearer(S1), json=payload)
+    assert r.status_code == 422
+    assert "avatar_url" in r.json()["details"]
 
 
 def test_empty_body_is_400(client, db):

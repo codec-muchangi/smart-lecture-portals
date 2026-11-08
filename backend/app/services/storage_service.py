@@ -10,6 +10,10 @@ log = logging.getLogger("app.storage")
 MATERIALS_BUCKET = "materials"
 SUBMISSIONS_BUCKET = "submissions"
 
+# The ONE public bucket: profile photos are shown to other users, so they are served
+# by plain URL. Object paths are always <user_id>/<random>.<ext>, never client input.
+AVATARS_BUCKET = "avatars"
+
 
 def upload_object(bucket: str, path: str, data: bytes, content_type: str) -> None:
     """Store a new object. Never overwrites (upsert=false). Failure means nothing was stored."""
@@ -43,3 +47,12 @@ def signed_download_url(bucket: str, path: str, expires_in: int, download_name: 
         log.exception("Signed URL creation failed for %s/%s", bucket, path)
         raise ServiceUnavailable("File storage is unavailable. Please try again.") from exc
     return result["signedURL"]
+
+
+def public_url(bucket: str, path: str) -> str:
+    """Permanent URL for an object in a PUBLIC bucket (avatars only)."""
+    try:
+        return get_supabase().storage.from_(bucket).get_public_url(path).rstrip("?")
+    except Exception as exc:
+        log.exception("Public URL creation failed for %s/%s", bucket, path)
+        raise ServiceUnavailable("File storage is unavailable. Please try again.") from exc

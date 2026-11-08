@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../services/apiClient.js";
 import { supabase } from "../../services/supabase.js";
 import { useAuth } from "../../app/AuthContext.jsx";
+import ProfilePhotoControls from "../../components/ProfilePhotoControls.jsx";
 import {
   COURSE_STYLES,
   ErrorCard,
@@ -39,7 +40,7 @@ import {
  * - Renders inside AppShell, which already draws the sidebar and top bar.
  * - Uses only what the API provides (docs/API.md, "Profile" and "Auth"):
  *     GET   /me                      profile, email, role details (staff_number, department, title, status)
- *     PATCH /me                      only full_name, phone, avatar_url can change; the page sends only what changed
+ *     PATCH /me                      only full_name and phone can change (photos: POST/DELETE /me/avatar); the page sends only what changed
  *     POST  /auth/password/change    { current_password, new_password } -> 204; 400 with details per field
  *     POST  /auth/password/reset     { email } -> 202, same answer for any address
  *   plus Supabase sign-out (this device, or every other device).
@@ -265,7 +266,7 @@ function ProfileTab({ me }) {
     onError: (error) => {
       const fields = detailsOf(error);
       const next = {};
-      ["full_name", "phone", "avatar_url"].forEach((key) => {
+      ["full_name", "phone"].forEach((key) => {
         if (fields[key]) next[key] = firstText(fields[key]);
       });
       setServerErrors(next);
@@ -306,7 +307,7 @@ function ProfileTab({ me }) {
       <div>
         <h2 className="slpx-h">Faculty dossier details</h2>
         <p className="slpx-sub">
-          Your name, phone and photo link are visible to students and
+          Your name, phone and photo are visible to students and
           colleagues. Registry details are read-only.
         </p>
       </div>
@@ -398,23 +399,7 @@ function ProfileTab({ me }) {
           />
         </Field>
         <div className="is-full" style={{ gridColumn: "1 / -1" }}>
-          <Field
-            id="set-avatar"
-            label="Profile photo link"
-            icon="image"
-            error={errors.avatar_url}
-            help="An https:// link to an image. Leave empty to show your initials."
-          >
-            <input
-              id="set-avatar"
-              className={`slpx-input ${errors.avatar_url ? "is-bad" : ""}`}
-              value={values.avatar_url}
-              onChange={edit("avatar_url")}
-              inputMode="url"
-              autoComplete="off"
-              aria-invalid={errors.avatar_url ? "true" : undefined}
-            />
-          </Field>
+          <ProfilePhotoControls />
         </div>
       </div>
       {status && (

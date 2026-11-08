@@ -126,7 +126,7 @@ test("shows the profile from the server with registry fields read-only", async (
   expect(save()).toBeDisabled();
 });
 
-test("falls back to initials when the photo link does not load", async () => {
+test("falls back to initials when the photo does not load", async () => {
   me = { ...ME, avatar_url: "https://example.com/missing.png" };
   install();
   const { container } = renderPage();
@@ -164,7 +164,7 @@ test("cancel puts the saved values back", async () => {
   expect(patches()).toHaveLength(0);
 });
 
-test("checks name, phone and photo link before sending anything", async () => {
+test("checks name and phone before sending anything", async () => {
   install();
   renderPage();
   await waitFor(() => expect(name()).toHaveValue("Marcus Sterling"));
@@ -178,25 +178,37 @@ test("checks name, phone and photo link before sending anything", async () => {
   expect(
     screen.getByText("Use 7 to 20 characters: digits, spaces, + - ( )."),
   ).toBeInTheDocument();
-  fireEvent.change(phone(), { target: { value: "+254 700 000 000" } });
-  fireEvent.change(screen.getByLabelText(/^Profile photo link/), {
-    target: { value: "http://example.com/me.png" },
-  });
-  expect(
-    screen.getByText("Use a full https:// link, or leave it empty."),
-  ).toBeInTheDocument();
   expect(save()).toBeDisabled();
-  fireEvent.change(screen.getByLabelText(/^Profile photo link/), {
-    target: { value: "https://example.com/me.png" },
-  });
+  fireEvent.change(phone(), { target: { value: "+254 700 000 000" } });
   expect(save()).toBeEnabled();
   fireEvent.click(save());
   await waitFor(() => expect(patches()).toHaveLength(1));
   expect(patches()[0].body).toEqual({
     full_name: "Marcus S",
     phone: "+254 700 000 000",
-    avatar_url: "https://example.com/me.png",
   });
+});
+
+test("removes the photo through the photo endpoint, not the profile form", async () => {
+  me = { ...ME, avatar_url: "https://example.com/alex.png" };
+  install({
+    "DELETE /me/avatar": () => {
+      me = { ...me, avatar_url: null };
+      return me;
+    },
+  });
+  const { container } = renderPage();
+  await waitFor(() =>
+    expect(container.querySelector(".slpx-avatar img")).not.toBeNull(),
+  );
+  expect(screen.queryByLabelText(/Profile photo link/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /Remove photo/ }));
+  await waitFor(() =>
+    expect(container.querySelector(".slpx-avatar img")).toBeNull(),
+  );
+  expect(calls.some((call) => call.key === "DELETE /me/avatar")).toBe(true);
+  expect(auth.refresh).toHaveBeenCalled();
+  expect(patches()).toHaveLength(0);
 });
 
 test("shows field messages the server sends back", async () => {

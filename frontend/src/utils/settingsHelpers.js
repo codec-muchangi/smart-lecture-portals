@@ -10,28 +10,17 @@ export function validateProfile(values) {
   if (name.length < 2 || name.length > 120 || hasControl(name)) errors.full_name = 'Enter your full name (2 to 120 characters).'
   const phone = values.phone.trim()
   if (phone && !PHONE.test(phone)) errors.phone = 'Use 7 to 20 characters: digits, spaces, + - ( ).'
-  const avatar = values.avatar_url.trim()
-  if (avatar) {
-    let ok = false
-    try {
-      ok = new URL(avatar).protocol === 'https:'
-    } catch {
-      ok = false
-    }
-    if (!ok) errors.avatar_url = 'Use a full https:// link, or leave it empty.'
-  }
   return errors
 }
 
-export const baseValues = (me) => ({ full_name: me?.full_name ?? '', phone: me?.phone ?? '', avatar_url: me?.avatar_url ?? '' })
+export const baseValues = (me) => ({ full_name: me?.full_name ?? '', phone: me?.phone ?? '' })
 
-// Only the fields that changed, as PATCH /me expects. An emptied phone or photo link becomes null (clears it).
+// Only the fields that changed, as PATCH /me expects. An emptied phone becomes null (clears it).
 export function changedPayload(me, values) {
   const base = baseValues(me)
   const payload = {}
   if (values.full_name.trim() !== base.full_name) payload.full_name = values.full_name.trim()
   if (values.phone.trim() !== base.phone) payload.phone = values.phone.trim() || null
-  if (values.avatar_url.trim() !== base.avatar_url) payload.avatar_url = values.avatar_url.trim() || null
   return payload
 }
 
@@ -48,3 +37,18 @@ export function passwordChecks(current, next, confirm) {
 export const without = (object, key) => Object.fromEntries(Object.entries(object).filter(([name]) => name !== key))
 export const detailsOf = (error) => (error && typeof error.details === 'object' && error.details ? error.details : {})
 export const firstText = (value) => (Array.isArray(value) ? String(value[0] ?? '') : String(value ?? ''))
+
+// ---------- profile photo (uploaded as a file, never typed as a link) ----------
+export const PHOTO_MAX_BYTES = 2 * 1024 * 1024
+export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+export const PHOTO_ACCEPT = PHOTO_TYPES.join(',')
+
+// Quick checks before uploading. The server re-checks everything (type is decided
+// from the file's bytes there), so this only saves a wasted trip.
+export function checkPhotoFile(file) {
+  if (!file) return 'Choose a photo first.'
+  if (!PHOTO_TYPES.includes(file.type)) return 'Use a JPEG, PNG or WebP photo.'
+  if (file.size === 0) return 'That file is empty.'
+  if (file.size > PHOTO_MAX_BYTES) return 'The photo must be 2 MB or smaller.'
+  return ''
+}
