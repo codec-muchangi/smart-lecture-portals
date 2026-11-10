@@ -44,6 +44,7 @@ function renderShell(role, path) {
           <Route path={`/${role}`} element={<AppShell role={role} />}>
             <Route index element={<p>page body</p>} />
             <Route path="courses" element={<p>courses body</p>} />
+            <Route path="assignments" element={<p>assignments body</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -134,4 +135,14 @@ test('header falls back to the icon when the photo does not load', () => {
   fireEvent.error(container.querySelector('.slps-avatar img'))
   expect(container.querySelector('.slps-avatar img')).toBeNull()
   expect(container.querySelector('.slps-avatar svg, .slps-avatar span, .slps-avatar')).not.toBeNull()
+})
+
+test('lights up Assignments & Grading on the lecturer assignments page', () => {
+  auth.user = LECTURER
+  mockApi({ notifications: [] })
+  renderShell('lecturer', '/lecturer/assignments')
+  const link = screen.getByRole('link', { name: 'Assignments & Grading' })
+  expect(link).toHaveAttribute('href', '/lecturer/assignments')
+  expect(link).toHaveAttribute('aria-current', 'page')
+  expect(screen.getByRole('link', { name: 'My Courses' })).not.toHaveAttribute('aria-current')
 })
