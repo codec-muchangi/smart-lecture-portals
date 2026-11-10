@@ -45,6 +45,7 @@ function renderShell(role, path) {
             <Route index element={<p>page body</p>} />
             <Route path="courses" element={<p>courses body</p>} />
             <Route path="assignments" element={<p>assignments body</p>} />
+            <Route path="assignments/:assignmentId/submissions" element={<p>grading body</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -146,3 +147,9 @@ test('lights up Assignments & Grading on the lecturer assignments page', () => {
   expect(link).toHaveAttribute('aria-current', 'page')
   expect(screen.getByRole('link', { name: 'My Courses' })).not.toHaveAttribute('aria-current')
 })
+    test('keeps Assignments & Grading lit while grading a submission', () => {
+    auth.user = LECTURER
+    mockApi({ notifications: [] })
+    renderShell('lecturer', '/lecturer/assignments/a1/submissions')
+    expect(screen.getByRole('link', { name: 'Assignments & Grading' })).toHaveAttribute('aria-current', 'page')
+    })
