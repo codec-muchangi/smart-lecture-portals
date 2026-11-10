@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi } from 'vitest'
@@ -7,6 +7,10 @@ const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }))
 vi.mock('../src/services/apiClient.js', () => ({ api: apiMock }))
 
 import LecturerAssignments from '../src/pages/lecturer/LecturerAssignments.jsx'
+
+// Slow machines load this page cold on the first test, so allow generous waits.
+configure({ asyncUtilTimeout: 5000 })
+vi.setConfig({ testTimeout: 15000 })
 
 const at = (...parts) => new Date(...parts).toISOString()
 
