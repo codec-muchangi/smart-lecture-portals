@@ -41,7 +41,7 @@ const NAV = {
     { label: 'Dashboard', icon: 'grid_view', to: '', end: true },
     { label: 'My Courses', icon: 'menu_book', to: 'courses' },
     { label: 'Materials Management', icon: 'folder_open', to: 'materials' },
-    { label: 'Assignments & Grading', icon: 'assignment_turned_in', course: true },
+    { label: 'Assignments & Grading', icon: 'assignment_turned_in', to: 'assignments' },
     { label: 'Attendance Tracker', icon: 'how_to_reg', course: true },
     { label: 'Marks & Assessment', icon: 'grade', to: 'marks' },
     { label: 'Announcements', icon: 'campaign', to: 'announcements' },

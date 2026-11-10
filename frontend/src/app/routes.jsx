@@ -12,6 +12,7 @@ import StudentCourses from '../pages/student/StudentCourses.jsx'
 import StudentAssignments from '../pages/student/StudentAssignments.jsx'
 import StudentAttendance from '../pages/student/StudentAttendance.jsx'
 import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
+import LecturerAssignments from '../pages/lecturer/LecturerAssignments.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerNotifications from '../pages/lecturer/LecturerNotifications.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
@@ -40,7 +41,7 @@ const LECTURER_ROUTES = [
   ['', 'Lecturer Dashboard', 'Phase 8'], ['courses', 'My Courses', 'Phase 2'],
   ['courses/:courseId', 'Course Details', 'Phase 2'], ['courses/:courseId/students', 'Students', 'Phase 2'],
   ['materials', 'Materials Management', 'Phase 3'], ['courses/:courseId/materials', 'Materials Management', 'Phase 3'],
-  ['courses/:courseId/assignments', 'Assignment Management', 'Phase 4'],
+  ['assignments', 'Assignments Management', 'Phase 4'], ['courses/:courseId/assignments', 'Assignment Management', 'Phase 4'],
   ['assignments/:assignmentId/submissions', 'Submission Review', 'Phase 4'], ['courses/:courseId/attendance', 'Attendance Management', 'Phase 6'],
   ['marks', 'Marks & Assessment', 'Phase 5'], ['courses/:courseId/marks', 'Marks Management', 'Phase 5'],
   ['announcements', 'Announcements', 'Phase 7'],
@@ -71,6 +72,8 @@ const PAGES = {
   'student:courses/:courseId/attendance': <StudentAttendance />,
   'lecturer:courses': <LecturerCourses />,
   'lecturer:courses/:courseId': <LecturerCourses />,
+  'lecturer:assignments': <LecturerAssignments />,
+  'lecturer:courses/:courseId/assignments': <LecturerAssignments />,
   'lecturer:materials': <LecturerMaterials />,
   'lecturer:courses/:courseId/materials': <LecturerMaterials />,
   'lecturer:marks': <LecturerMarks />,
