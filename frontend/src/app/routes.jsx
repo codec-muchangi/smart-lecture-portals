@@ -13,7 +13,7 @@ import StudentAssignments from '../pages/student/StudentAssignments.jsx'
 import StudentAttendance from '../pages/student/StudentAttendance.jsx'
 import LecturerCourses from '../pages/lecturer/LecturerCourses.jsx'
 import LecturerAssignments from '../pages/lecturer/LecturerAssignments.jsx'
-   import LecturerGradeSubmission from '../pages/lecturer/LecturerGradeSubmission.jsx'
+import LecturerGradeSubmission from '../pages/lecturer/LecturerGradeSubmission.jsx'
 import LecturerMaterials from '../pages/lecturer/LecturerMaterials.jsx'
 import LecturerNotifications from '../pages/lecturer/LecturerNotifications.jsx'
 import LecturerAnnouncements from '../pages/lecturer/LecturerAnnouncements.jsx'
@@ -73,7 +73,7 @@ const PAGES = {
   'student:courses/:courseId/attendance': <StudentAttendance />,
   'lecturer:courses': <LecturerCourses />,
   'lecturer:courses/:courseId': <LecturerCourses />,
-  
+  'lecturer:assignments': <LecturerAssignments />,
   'lecturer:assignments/:assignmentId/submissions': <LecturerGradeSubmission />,
   'lecturer:courses/:courseId/assignments': <LecturerAssignments />,
   'lecturer:materials': <LecturerMaterials />,
