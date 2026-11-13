@@ -288,5 +288,19 @@ check("the old unread notification stays", "select count(*) from notifications w
 check("the purge is audited", "select (new_value->>'deleted') || '/' || (new_value->>'older_than_days') from audit_logs where action='notifications.purge';", "1/90")
 check("purge index exists", "select count(*) from pg_indexes where indexname='notifications_purge_idx';", "1")
 
+print("== Phase 10: operations (db/ops, backup restore recipe) ==")
+status_sql = (ROOT / "db" / "ops" / "schema_status.sql").read_text(encoding="utf-8").rstrip().rstrip(";")
+status_sql = status_sql.replace("order by m.migration", "")
+check("schema_status.sql: all 11 migrations report applied", f"select count(*) filter (where applied) || '/' || count(*) from ({status_sql}) s;", "11/11")
+TABLES = ["profiles", "students", "lecturers", "courses", "course_lecturers", "course_enrollments", "materials", "assignments",
+          "submissions", "attendance_sessions", "attendance_records", "assessments", "assessment_marks", "announcements",
+          "notifications", "timetable_entries", "audit_logs"]
+for tbl in TABLES:
+    check(f"restore recipe round-trips {tbl}",
+          f"create table zz_restore (like {tbl} including defaults); "
+          f"insert into zz_restore select * from jsonb_populate_recordset(null::{tbl}, coalesce((select jsonb_agg(to_jsonb(x)) from {tbl} x), '[]'::jsonb)); "
+          f"select (select count(*) from zz_restore) = (select count(*) from {tbl}) and not exists (select 1 from (select * from {tbl} except select * from zz_restore) d); "
+          "drop table zz_restore;", "t")
+
 print("\nFAILED:" if fails else "\nALL REAL-DATABASE CHECKS PASSED", fails if fails else "")
 sys.exit(1 if fails else 0)

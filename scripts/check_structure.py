@@ -22,6 +22,13 @@ REQUIRED += [f"backend/app/{d}" for d in ["api", "core", "db", "models", "schema
 REQUIRED += [f"frontend/src/{d}" for d in ["app", "components", "layouts", "pages/auth", "pages/student", "pages/lecturer",
                                             "features", "services", "hooks", "utils", "types"]]
 REQUIRED += [f"frontend/src/features/{f}" for f in FEATURES]
+REQUIRED += [
+    "backend/Dockerfile", "backend/.dockerignore", "render.yaml", "frontend/vercel.json", "frontend/public/_redirects",
+    "scripts/check_production_env.py", "scripts/smoke_test.py", "scripts/backup_data.py",
+    "db/ops/schema_status.sql", "db/ops/schedule_notification_purge.sql",
+    "docs/DEPLOYMENT.md", "docs/OPERATIONS.md", "docs/USER_GUIDE.md", "docs/DEMO_SCRIPT.md", "docs/ACCEPTANCE.md",
+    "docs/PHASE10_BACKEND.md", "CHANGELOG.md", "SECURITY.md",
+]
 
 missing = [p for p in REQUIRED if not (ROOT / p).exists()]
 if missing:

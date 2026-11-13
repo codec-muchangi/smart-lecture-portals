@@ -15,3 +15,6 @@ htmlcov/
 !.vscode/settings.json
 .idea/
 *.log
+
+# Phase 10
+backups/
