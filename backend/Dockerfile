@@ -1,5 +1,5 @@
 # Production image for the Smart Lecture Portal API (SRS 18). Built from ./backend.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # FORWARDED_ALLOW_IPS=*: the hosting platform's proxy sits in front of the container, and uvicorn must trust
 # its X-Forwarded-For header so the rate limiter sees real client addresses (the container is not reachable
