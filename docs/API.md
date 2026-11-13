@@ -233,3 +233,10 @@ Notifications go to the **actively enrolled** students of the course; withdrawn 
 | `grade_released` | a submission's grade becomes visible to its student (single release, or bulk release: only the students it reveals) | `Grade released: {assignment title}` | `/student/assignments/{id}` |
 
 **Delivery guarantees:** announcement notifications are written in the same transaction as the announcement. The other four are **best effort**: they are created right after the lecturer's change is saved, and a failure is logged but never blocks or undoes the change. Notifications are not created for lecturers in this version, and none are sent by email/SMS/push (future enhancement, SRS 2.3).
+
+## Phase 10 — deployment notes
+No endpoint was added or changed. For operators: `GET /health` (liveness) and `GET /health/ready` (readiness)
+are the probes used by the hosting platform, the container `HEALTHCHECK` and the post-deploy smoke test
+(`scripts/smoke_test.py`). In production `/docs`, `/redoc` and `/openapi.json` are not served; read this file
+instead. Behind the platform proxy the API trusts `X-Forwarded-For` (`FORWARDED_ALLOW_IPS`, `--proxy-headers`)
+so rate limits see real client addresses. See `docs/DEPLOYMENT.md`.

@@ -1,5 +1,7 @@
 # Manual, gated release build. Deployment targets are chosen per SRS section 18 (any compatible host).
 # It re-runs the full test suite first: nothing is built for release if a test fails (SRS section 19).
+# The API on Render deploys by itself only after CI passes (render.yaml: autoDeployTrigger: checksPass), and
+# the front-end on Vercel builds from Git. This workflow is the extra manual gate and the release artifact.
 name: Release build
 
 on:
@@ -30,6 +32,8 @@ jobs:
         env:
           SUPABASE_URL: http://localhost:54321
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      - name: The production image builds
+        run: docker build -t slp-api backend
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -45,5 +49,5 @@ jobs:
         with:
           name: release-frontend-dist
           path: frontend/dist
-      # Add the host-specific publish step here (Vercel/Netlify/Render/etc.) using repository secrets.
-      # Apply DB changes separately: run db/migrations in order against production, after a backup.
+      # Publishing is done by the hosts themselves (docs/DEPLOYMENT.md). Apply database changes separately:
+      # run db/migrations in order against production, after a backup (docs/OPERATIONS.md).

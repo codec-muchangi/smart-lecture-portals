@@ -142,3 +142,10 @@ erDiagram
 - **`purge_read_notifications(p_days)`** (service role only): deletes notifications that were read more than `p_days` days ago (minimum 30; unread are never deleted) and writes one `notifications.purge` audit row. Index `notifications_purge_idx (read_at) where is_read`.
 - No existing row changes. `scripts/verify_database.py` now applies eleven migrations and runs 209 checks (it simulates Supabase's default table grants, so the revocation is really tested).
 
+
+## Phase 10 — no schema change
+Phase 10 adds no migration: the schema is still migrations 0001-0011 (17 tables). It adds operations SQL under
+`db/ops` (read-only `schema_status.sql` to confirm which migrations are applied, and
+`schedule_notification_purge.sql`, a `pg_cron` job that runs `purge_read_notifications(90)` weekly) and a
+backup/restore recipe proven on a real PostgreSQL (`docs/OPERATIONS.md`). `scripts/backup_data.py` exports exactly
+the 17 tables above; a test fails if that list and the migrations ever differ.

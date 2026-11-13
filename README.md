@@ -1,28 +1,61 @@
 # Smart Lecture Portal
 
 Academic management and learning-support platform for **students** and **lecturers** (SRS v1.0, no admin role).
-React + Vite · FastAPI · Supabase (PostgreSQL, Auth, Storage).
+React + Vite · FastAPI · Supabase (PostgreSQL, Auth, Storage) · Docker · GitHub Actions.
 
-| Doc | Purpose |
+**Status:** the backend (SRS phases 0-10) is complete, tested and deployable. The browser pages are built in the
+front-end phase against the finished API contract (`docs/API.md`).
+
+## What it does
+| For students | For lecturers |
 |---|---|
-| `docs/SRS.md` → `.docx` | Authoritative requirements |
-| `docs/ERD.md` | Data model + integrity rules + flagged decisions |
-| `docs/API.md` | REST contract, authorization rules |
-| `docs/FRONTEND.md` | Routes, pages, workflows |
-| `db/migrations` | Versioned schema (apply in order) |
+| Dashboard, courses, timetable | Dashboard, assigned courses, class lists |
+| Download course materials | Upload and publish materials |
+| Submit assignments, see released grades | Create assignments, grade, release marks |
+| See published marks and weighted totals | Record assessment marks (CAT, exam, ...) |
+| See own attendance percentage | Take attendance, with audited corrections |
+| Read announcements, notifications | Publish announcements; attendance, submission and performance reports |
+
+Task-by-task detail: `docs/USER_GUIDE.md`.
+
+## Architecture
+```
+React (Vercel) --HTTPS--> FastAPI (Render, Docker) --service key--> Supabase (Postgres, Auth, Storage)
+routes -> services -> repositories -> Supabase        errors {code,message,details}; pages {items,page,page_size,total}
+```
+Authorization is enforced on the server (role + course assignment/enrolment), backed by database constraints,
+triggers, row-level security and least-privilege roles.
+
+## Documentation index
+| Document | Purpose |
+|---|---|
+| `docs/SRS.md` -> `.docx` | Authoritative requirements |
+| `docs/ERD.md` | Data model, integrity rules, flagged decisions |
+| `docs/API.md` | REST contract and authorization rules |
+| `docs/FRONTEND.md` | Planned routes, pages and workflows |
+| `docs/USER_GUIDE.md` | What each role can do, and the rules |
+| `docs/DEPLOYMENT.md` | Production deployment, step by step |
+| `docs/OPERATIONS.md` | Backups, restore, key rotation, retention, troubleshooting |
+| `docs/ACCEPTANCE.md` | AT-01..AT-20 traceability and the live checklist |
+| `docs/DEMO_SCRIPT.md` | Final demonstration walkthrough |
+| `docs/PHASE1_BACKEND.md` ... `docs/PHASE10_BACKEND.md` | What each phase added, its setup steps and live checks |
+| `CHANGELOG.md`, `SECURITY.md` | Release notes, security policy |
+| `db/migrations`, `db/ops`, `db/seed` | Versioned schema, operations SQL, demo data |
 
 ## Repository layout
 ```
-backend/   FastAPI app (api, core, db, models, schemas, services, repositories, utils) + tests
-frontend/  React app (app, components, layouts, pages/{auth,student,lecturer}, features/*, services, hooks, utils, types)
-db/        migrations + demo seed
-docs/      SRS, ERD, API, frontend spec
-scripts/   check_structure.py, check_sql.py, seed_demo.py
-.github/   CI, CodeQL, release build, Dependabot, PR/issue templates
+backend/   FastAPI app (api, core, db, models, schemas, services, repositories, utils), tests, Dockerfile
+frontend/  React app, vercel.json (router rewrite + headers), public/_redirects
+db/        migrations (apply in order), ops (status, schedules), seed (demo data)
+docs/      all documentation above
+scripts/   operations and quality scripts (table below)
+.github/   CI, CodeQL, security audit, release build, Dependabot, templates
+render.yaml  API hosting blueprint
 ```
 
-## First-time setup (Windows PowerShell shown; macOS/Linux equivalents work)
-1. Create a Supabase project (separate dev and prod). In the SQL editor (or `psql`), run `db/migrations/0001_init_schema.sql` then `0002_views.sql`.
+## Quick start for development (Windows PowerShell; macOS/Linux equivalents work)
+1. Create a Supabase **development** project. In the SQL Editor run every file of `db/migrations` in order
+   (`0001` ... `0011`), then `db/ops/schema_status.sql` (all rows `applied = true`).
 2. Backend:
    ```powershell
    cd backend
@@ -40,52 +73,80 @@ scripts/   check_structure.py, check_sql.py, seed_demo.py
    npm install
    npm run dev                  # http://localhost:5173
    ```
-4. Demo data (dev only): set `DEMO_PASSWORD`, `DATABASE_URL` in `backend/.env` and run `python scripts/seed_demo.py`.
+4. Demo data (development only): set `DEMO_PASSWORD` and `DATABASE_URL`, then `python scripts/seed_demo.py`
+   (`docs/DEMO_SCRIPT.md`).
 
-## Creating accounts (no self-signup in v1.0)
-`cd backend` → activate venv → `python ../scripts/create_user.py --role student --email … --name … --registration-number …` (see `docs/PHASE1_BACKEND.md`).
+## Environment variables
+All are listed, with defaults, in `backend/.env.example` (a test fails if one is missing). In production set at
+least these six on the host (`render.yaml` asks for them; **never commit values**):
 
-## Courses and enrollment (no admin UI in v1.0)
-`cd backend` → activate venv → `python ../scripts/manage_academic.py --help` (create courses, assign lecturers, enroll/withdraw students, bulk CSV enroll, archive courses). See `docs/PHASE2_BACKEND.md`.
+| Variable | Production value |
+|---|---|
+| `ENVIRONMENT` | `production` |
+| `SUPABASE_URL` | `https://<project>.supabase.co` |
+| `SUPABASE_ANON_KEY` | anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service key: backend only, never the front end |
+| `CORS_ORIGINS` | exact front-end origin(s), https |
+| `PASSWORD_RESET_REDIRECT_URL` | `https://<front end>/reset-password` |
 
-## Materials and file storage
-Lecturers upload course files through the API (`docs/API.md`, Phase 3). Files live in the private Supabase `materials` bucket and are served by short-lived signed links. Run `python ../scripts/purge_deleted_materials.py` (from `backend`) now and then to remove any file left behind by a failed delete. See `docs/PHASE3_BACKEND.md`.
+Front end (`frontend/.env.example`): `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 
-## Assignments and submissions
-Lecturers create, publish and close assignments (optionally with an attached brief); students submit one file before the deadline (late only if the lecturer allows it) and can replace it until it is graded. See `docs/PHASE4_BACKEND.md` for the rules, the live-check list and the decisions to confirm.
-
-## Grading and marks
-Lecturers grade assignment submissions (mark + feedback, release when ready, or return for revision) and record assessment marks (CAT, exam, ...) for their students; students see only released grades and published marks, with a weighted course total. See `docs/PHASE5_BACKEND.md` for the rules, the setup steps and the live-check list. `python scripts/verify_database.py` (needs `pip install pgserver`, Linux/macOS) proves the SQL rules on a real throw-away PostgreSQL.
-
-## Attendance
-Lecturers create lecture sessions and mark their actively enrolled students (present, absent, late, excused) in one saved request, with every first mark and correction audited; students see only their own history and attendance percentage. See `docs/PHASE6_BACKEND.md` for the rules, the setup steps and the live-check list.
-
-## Announcements and notifications
-Lecturers publish course announcements; students enrolled in the course see only the published ones. Students get in-app notifications for new announcements, assignments and materials and for released marks and grades, and mark them read. See `docs/PHASE7_BACKEND.md` for the rules, the setup steps and the live-check list.
-
-## Dashboards and reports
-Students and lecturers get a role-specific dashboard (`GET /dashboard`) and a read-only timetable (`GET /timetable`); lecturers get attendance, submission and performance reports per course. Everything is computed from live records and limited to what the caller may see. See `docs/PHASE8_BACKEND.md` for the rules, the setup steps and the live-check list.
-
-## Security hardening
-Every response carries security headers and a request id; production refuses to start with an unsafe configuration; login, password change, uploads and reports are rate limited; logs never contain tokens or passwords; the database blocks bulk deletion of academic records. Whole-API tests fail when an endpoint is public by accident, undocumented, or an unpaginated list. See `docs/PHASE9_BACKEND.md` for the findings, the setup steps and the live-check list.
+## Scripts
+| Script | Purpose | Guide |
+|---|---|---|
+| `scripts/check_structure.py`, `check_sql.py` | Repository structure and SQL syntax (run by CI) | below |
+| `scripts/verify_database.py` | Applies all migrations to a throw-away PostgreSQL and checks the rules (`pip install pgserver`) | `docs/PHASE5_BACKEND.md` |
+| `scripts/create_user.py` | Create a student or lecturer account | `docs/PHASE1_BACKEND.md` |
+| `scripts/manage_academic.py` | Courses, lecturers, enrolments | `docs/PHASE2_BACKEND.md` |
+| `scripts/seed_demo.py` | Demo data (never production) | `docs/DEMO_SCRIPT.md` |
+| `scripts/purge_deleted_materials.py` | Remove leftover files of deleted materials | `docs/PHASE3_BACKEND.md` |
+| `scripts/purge_old_notifications.py` | Manual notification retention | `docs/PHASE9_BACKEND.md` |
+| `scripts/check_production_env.py` | Pre-flight of production settings | `docs/DEPLOYMENT.md` |
+| `scripts/smoke_test.py` | Post-deploy live check | `docs/DEPLOYMENT.md` |
+| `scripts/backup_data.py` | Export all tables to JSON Lines | `docs/OPERATIONS.md` |
 
 ## Quality gates (same commands CI runs)
 ```
 python scripts/check_structure.py && python scripts/check_sql.py
-cd backend  && ruff check . && ruff format --check . && pytest
+python scripts/verify_database.py
+cd backend  && ruff check . && ruff format --check . && pytest --cov=app
 cd frontend && npm run lint && npm test && npm run build
+docker build -t slp-api backend
 ```
+Backend tests need `ENVIRONMENT=test SUPABASE_URL=http://localhost:54321 SUPABASE_SERVICE_ROLE_KEY=ci-placeholder`
+only when your own `.env` points elsewhere; CI sets them.
+
+## CI/CD
+`ci.yml` (push and pull request): structure + SQL syntax, real-PostgreSQL migration checks, backend lint/format/
+tests, **container image build and start-up check**, front-end lint/tests/build, secret scan, then the single
+required gate **CI passed**. `codeql.yml` and `security-audit.yml` run weekly. `deploy.yml` is a manual release
+build that re-runs every test first. Dependabot keeps pip, npm, GitHub Actions and Docker current.
+
+Deployment (`docs/DEPLOYMENT.md`): the API deploys on Render only after the GitHub checks pass
+(`autoDeployTrigger: checksPass`); the front end on Vercel. Database changes are applied by hand after a backup.
 
 ## Git workflow
 - Branches: `main` (protected, deployable), `develop` (integration), `feat/<phase>-<topic>`.
 - Commit style: `feat:`, `fix:`, `test:`, `refactor:`, `docs:`.
-- PR into `develop`; required status check on `main`/`develop`: **CI passed** (Settings → Branches → require status checks). Also enable "Require PR before merging".
-- Schema changes = new numbered migration + updates to `docs/ERD.md` and `docs/API.md` in the same PR.
+- Pull request into `develop`; require the status check **CI passed** and a pull request before merging.
+- Schema change = new numbered migration + updates to `docs/ERD.md` and `docs/API.md` in the same pull request.
 
-## CI/CD
-`.github/workflows/ci.yml` (push/PR): structure + SQL syntax, backend lint/format/tests, frontend lint/tests/build, secret scan → aggregate **CI passed** gate.
-`codeql.yml`: weekly + PR security analysis. `deploy.yml`: manual release build that re-runs all tests first; add your host's publish step. Dependabot keeps pip/npm/actions current.
-Repo settings to add: Secrets none needed for CI; for release, Environment `production` with vars `VITE_API_BASE_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+## Security
+Role- and course-scoped authorization on every endpoint, validated and signed file handling, rate limits,
+security headers, redacted logs, production fail-fast configuration, least-privilege database roles and an
+append-only audit trail. Policy and known limitations: `SECURITY.md`. Never commit `.env` files or keys.
 
-## Phases (SRS §20)
-Phase 0 (this scaffold: auth guard, `/me`, `/courses`, error model, CI) is complete. Continue with Phase 1 → 10 in order; each phase must pass its acceptance tests (AT-xx) before the next starts.
+## Phases (SRS section 20)
+| Phase | Delivered | Guide |
+|---|---|---|
+| 0 | Scaffold, error model, CI, schema | - |
+| 1 | Authentication and profiles | `docs/PHASE1_BACKEND.md` |
+| 2 | Courses and enrolment | `docs/PHASE2_BACKEND.md` |
+| 3 | Materials and storage | `docs/PHASE3_BACKEND.md` |
+| 4 | Assignments and submissions | `docs/PHASE4_BACKEND.md` |
+| 5 | Grading and marks | `docs/PHASE5_BACKEND.md` |
+| 6 | Attendance | `docs/PHASE6_BACKEND.md` |
+| 7 | Announcements and notifications | `docs/PHASE7_BACKEND.md` |
+| 8 | Dashboards, timetable, reports | `docs/PHASE8_BACKEND.md` |
+| 9 | Hardening | `docs/PHASE9_BACKEND.md` |
+| 10 | Deployment and documentation | `docs/PHASE10_BACKEND.md` |

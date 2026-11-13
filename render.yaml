@@ -1,0 +1,25 @@
+# Render Blueprint: the API as a Docker service (SRS 18, any compatible host).
+# Secrets are NOT stored here: `sync: false` makes Render ask for each value in its dashboard.
+services:
+  - type: web
+    name: smart-lecture-portal-api
+    runtime: docker
+    plan: free # sleeps when idle; choose a paid plan for real use (docs/DEPLOYMENT.md)
+    region: frankfurt
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass # SRS 19: never deploy while CI is failing
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PASSWORD_RESET_REDIRECT_URL
+        sync: false
