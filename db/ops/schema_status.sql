@@ -39,6 +39,9 @@ from (
                     where schemaname = 'public' and indexname = 'course_enrollments_active_idx')),
     ('0011_hardening', 'function purge_read_notifications + trigger audit_logs_no_truncate',
        exists (select 1 from pg_proc where proname = 'purge_read_notifications')
-       and exists (select 1 from pg_trigger where tgname = 'audit_logs_no_truncate' and not tgisinternal))
+       and exists (select 1 from pg_trigger where tgname = 'audit_logs_no_truncate' and not tgisinternal)),
+    ('0012_service_role_grants', 'service_role has usage on schema public and full access to audit_logs',
+       has_schema_privilege('service_role', 'public', 'usage')
+       and has_table_privilege('service_role', 'public.audit_logs', 'select, insert, update, delete'))
 ) as m(migration, marker, applied)
 order by m.migration;

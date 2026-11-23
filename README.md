@@ -55,7 +55,7 @@ render.yaml  API hosting blueprint
 
 ## Quick start for development (Windows PowerShell; macOS/Linux equivalents work)
 1. Create a Supabase **development** project. In the SQL Editor run every file of `db/migrations` in order
-   (`0001` ... `0011`), then `db/ops/schema_status.sql` (all rows `applied = true`).
+   (`0001` ... `0012`), then `db/ops/schema_status.sql` (all rows `applied = true`).
 2. Backend:
    ```powershell
    cd backend

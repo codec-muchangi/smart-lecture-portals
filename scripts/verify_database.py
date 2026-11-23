@@ -71,8 +71,9 @@ C, A, AS = "00000000-0000-0000-0000-0000000000c1", "00000000-0000-0000-0000-0000
 print("== migrations on a real PostgreSQL ==")
 ok("Supabase stand-ins", """
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
-alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
-alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+grant usage on schema public to anon, authenticated;
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;
 create schema auth; create table auth.users (id uuid primary key default gen_random_uuid(), email text);
 create schema storage;
 create table storage.buckets (id text primary key, name text, public boolean default false,
@@ -288,10 +289,31 @@ check("the old unread notification stays", "select count(*) from notifications w
 check("the purge is audited", "select (new_value->>'deleted') || '/' || (new_value->>'older_than_days') from audit_logs where action='notifications.purge';", "1/90")
 check("purge index exists", "select count(*) from pg_indexes where indexname='notifications_purge_idx';", "1")
 
+print("== Migration 0012: service_role grants (the stand-ins above give service_role NO default privileges) ==")
+check("service_role has usage on schema public", "select has_schema_privilege('service_role','public','usage');", "t")
+for tbl in ("profiles", "courses", "submissions", "notifications", "audit_logs", "timetable_entries"):
+    check(f"service_role can read and write {tbl}", f"select has_table_privilege('service_role','public.{tbl}','select, insert, update, delete');", "t")
+check("service_role has every privilege on all 17 public tables",
+      "select count(*) filter (where case when c.relkind = 'r' then has_table_privilege('service_role', c.oid, 'select, insert, update, delete') else false end) "
+      "from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r';", "17")
+check("service_role can use every public sequence",
+      "select count(*) filter (where case when c.relkind = 'S' then not has_sequence_privilege('service_role', c.oid, 'usage, select, update') else false end) "
+      "from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'S';", "0")
+check("service_role can execute every public function",
+      "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' "
+      "and not has_function_privilege('service_role', p.oid, 'execute');", "0")
+for role in ("anon", "authenticated"):
+    check(f"{role} still has no privilege on any public table", f"select count(*) from information_schema.role_table_grants where grantee='{role}' and table_schema='public';", "0")
+    check(f"{role} still cannot execute apply_grade", f"select has_function_privilege('{role}','apply_grade(uuid, uuid, text, submission_status, numeric, text, boolean, boolean)','execute');", "f")
+ok("a table created later (as a future migration would) ...", "create table zz_future (id int primary key);")
+check("... is usable by service_role at once", "select has_table_privilege('service_role','public.zz_future','select, insert, update, delete');", "t")
+check("... and closed to anon and authenticated", "select has_table_privilege('anon','public.zz_future','select') or has_table_privilege('authenticated','public.zz_future','select');", "f")
+ok("... cleaned up", "drop table zz_future;")
+
 print("== Phase 10: operations (db/ops, backup restore recipe) ==")
 status_sql = (ROOT / "db" / "ops" / "schema_status.sql").read_text(encoding="utf-8").rstrip().rstrip(";")
 status_sql = status_sql.replace("order by m.migration", "")
-check("schema_status.sql: all 11 migrations report applied", f"select count(*) filter (where applied) || '/' || count(*) from ({status_sql}) s;", "11/11")
+check("schema_status.sql: all 12 migrations report applied", f"select count(*) filter (where applied) || '/' || count(*) from ({status_sql}) s;", "12/12")
 TABLES = ["profiles", "students", "lecturers", "courses", "course_lecturers", "course_enrollments", "materials", "assignments",
           "submissions", "attendance_sessions", "attendance_records", "assessments", "assessment_marks", "announcements",
           "notifications", "timetable_entries", "audit_logs"]
