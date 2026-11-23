@@ -29,9 +29,9 @@ In **SQL Editor**, open and run each file of `db/migrations` in this exact order
 "Success" each time: `0001_init_schema.sql`, `0002_views.sql`, `0003_auth_integrity.sql`,
 `0004_courses_enrollment.sql`, `0005_materials.sql`, `0006_assignments_submissions.sql`,
 `0007_grading_marks.sql`, `0008_attendance.sql`, `0009_announcements_notifications.sql`,
-`0010_timetable_reporting.sql`, `0011_hardening.sql`.
+`0010_timetable_reporting.sql`, `0011_hardening.sql`, `0012_service_role_grants.sql`.
 
-Then run `db/ops/schema_status.sql`. **All 11 rows must say `applied = true`.** Do **not** run
+Then run `db/ops/schema_status.sql`. **All 12 rows must say `applied = true`.** Do **not** run
 `db/seed/seed_demo.sql` on production (see `docs/DEMO_SCRIPT.md` for a separate demo environment).
 
 Later schema changes are new numbered migrations: take a backup first (step 9), apply the new file, re-run
@@ -131,6 +131,7 @@ Then work through the manual checklist in `docs/ACCEPTANCE.md` and the walkthrou
 |---|---|
 | Render build fails | Open the build log. Usually a typo in `render.yaml` paths or a failed dependency install |
 | Service starts, then stops: "Unsafe production configuration" | A production setting is wrong. Run the preflight (step 5); the message names the setting |
+| Creating accounts or any request says `permission denied for table ...` | The backend role lacks table privileges on a new Supabase project: run `db/migrations/0012_service_role_grants.sql` (safe to run again) |
 | `/health/ready` is 503 | Wrong `SUPABASE_URL`/service key, or Supabase paused. Check the Render logs for the `request_id` |
 | Browser says "CORS error" | `CORS_ORIGINS` does not match the front-end address exactly (scheme, no trailing slash) |
 | Login works on the API but the front end says "network error" | `VITE_API_BASE_URL` wrong, or the API is asleep (free plan): retry after a minute |

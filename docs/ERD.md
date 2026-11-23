@@ -143,8 +143,13 @@ erDiagram
 - No existing row changes. `scripts/verify_database.py` now applies eleven migrations and runs 209 checks (it simulates Supabase's default table grants, so the revocation is really tested).
 
 
+## Migration 0012 (production fix) — service_role grants
+- Grants `usage` on schema `public` and all privileges on every table, sequence and function to `service_role`, and sets default privileges so later objects get the same. Reason: newer Supabase projects may not grant `service_role` table privileges automatically, and migrations 0001-0011 relied on those defaults (symptom: `permission denied for table profiles`).
+- `anon` and `authenticated` are untouched and still have no privileges (0011). No table, column, row or trigger changes. Idempotent: safe to run on a database where the grants were already added by hand.
+- `scripts/verify_database.py` now simulates a Supabase project **without** default grants for `service_role` (so 0012 is really tested), applies twelve migrations and runs 246 checks, including that `service_role` can use all 17 tables, sequences and functions while `anon` and `authenticated` still cannot.
+
 ## Phase 10 — no schema change
-Phase 10 adds no migration: the schema is still migrations 0001-0011 (17 tables). It adds operations SQL under
+Phase 10 adds no migration: the schema was migrations 0001-0011 (17 tables; migration 0012 later added only grants). It adds operations SQL under
 `db/ops` (read-only `schema_status.sql` to confirm which migrations are applied, and
 `schedule_notification_purge.sql`, a `pg_cron` job that runs `purge_read_notifications(90)` weekly) and a
 backup/restore recipe proven on a real PostgreSQL (`docs/OPERATIONS.md`). `scripts/backup_data.py` exports exactly

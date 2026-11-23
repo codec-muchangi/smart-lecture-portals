@@ -29,7 +29,7 @@ No endpoint and no migration changed in this phase.
 | Production fails fast on unsafe settings, in the app, the preflight and the built image | `test_hardening_config.py`, `test_ops_scripts.py`, CI image job |
 | The backup lists exactly the tables the migrations create | `test_ops_scripts.py` |
 | A backup can be restored: the recipe round-trips every table on a real PostgreSQL | `scripts/verify_database.py` |
-| All 11 migrations are detected by `schema_status.sql` | `scripts/verify_database.py`, `test_docs_consistency.py` |
+| All 12 migrations are detected by `schema_status.sql` | `scripts/verify_database.py`, `test_docs_consistency.py` |
 | Every script, doc and migration is documented; AT-01..AT-20 are mapped to real test files | `test_docs_consistency.py` |
 
 ## Setup steps (apply Phase 10 to your project)

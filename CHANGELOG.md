@@ -2,6 +2,14 @@
 
 All notable changes. The project follows the phases of the SRS (section 20).
 
+## 1.0.1 - Production fix
+
+### Migration 0012 - service_role grants
+New Supabase projects may not give the backend's `service_role` table privileges automatically, which made the
+API fail with `permission denied for table ...`. `db/migrations/0012_service_role_grants.sql` grants them
+explicitly (idempotent, `service_role` only; `anon` and `authenticated` still have no access). The schema
+status query now reports 12 migrations, and the real-database check simulates a project without default grants.
+
 ## 1.0.0 - Backend release (Phases 0-10)
 
 ### Phase 10 - Deployment and documentation
