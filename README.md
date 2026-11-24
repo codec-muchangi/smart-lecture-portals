@@ -3,8 +3,8 @@
 Academic management and learning-support platform for **students** and **lecturers** (SRS v1.0, no admin role).
 React + Vite · FastAPI · Supabase (PostgreSQL, Auth, Storage) · Docker · GitHub Actions.
 
-**Status:** the backend (SRS phases 0-10) is complete, tested and deployable. The browser pages are built in the
-front-end phase against the finished API contract (`docs/API.md`).
+**Status:** the backend (SRS phases 0-10) is complete, tested and deployable. The browser pages (student and lecturer
+screens, in `frontend/`) use that API contract (`docs/API.md`).
 
 ## What it does
 | For students | For lecturers |

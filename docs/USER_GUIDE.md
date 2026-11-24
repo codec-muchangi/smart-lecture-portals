@@ -4,10 +4,10 @@ Who can do what in the Smart Lecture Portal, and the rules the system enforces f
 **students** and **lecturers**. There is no administrator role in version 1.0: accounts, courses and
 enrolments are set up by the institution's technical staff with the scripts in `docs/OPERATIONS.md`.
 
-> **About the screens.** The backend is complete and tested; the browser pages are built in the front-end
-> phase (planned screens and routes: `docs/FRONTEND.md`). This guide therefore describes each task in plain
-> words **and** names the matching operation in `docs/API.md`, so it stays correct when the pages arrive:
-> every page task is exactly one of these operations.
+> **About the screens.** The student and lecturer pages live in `frontend/` (route plan: `docs/FRONTEND.md`).
+> This guide describes each task in plain words **and** names the matching operation in `docs/API.md`, so it
+> stays correct as screens change: every page task is exactly one of these operations. Screen names and
+> button labels are not listed here because they may be refined; the rules below are enforced by the backend.
 
 ## Everyone
 | Task | What to know | Operation |

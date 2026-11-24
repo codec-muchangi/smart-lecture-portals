@@ -59,8 +59,8 @@ production: the demo accounts use a shared password.
 - Quality: the automated suite (backend tests, real-PostgreSQL migration checks, container check, secret scan,
   front-end build) must pass before anything is deployed.
 - Operations: documented deployment, backups, key rotation, retention, and a one-command live smoke test.
-- Honest scope: the browser pages are built in the front-end phase; the demonstration drives the finished
-  backend contract (`docs/API.md`), which the pages will use unchanged.
+- Honest scope: this script walks the backend contract (`docs/API.md`) step by step; the browser pages in
+  `frontend/` use that same contract, so each step can also be shown on the matching screen.
 
 ## After the demo
 Remove the demo data by discarding the demo project, or leave it for the next presentation. Never copy demo
