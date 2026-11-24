@@ -4,6 +4,8 @@ import { RequireAuth, RequireRole } from './guards.jsx'
 import AppShell from '../layouts/AppShell.jsx'
 import Landing from '../pages/Landing.jsx'
 import Login from '../pages/auth/Login.jsx'
+import ForgotPassword from '../pages/auth/ForgotPassword.jsx'
+import ResetPassword from '../pages/auth/ResetPassword.jsx'
 import NotFound from '../pages/NotFound.jsx'
 import Placeholder from '../pages/Placeholder.jsx'
 import LecturerDashboard from '../pages/lecturer/LecturerDashboard.jsx'
@@ -108,6 +110,8 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<RequireAuth />}>
         {roleRoutes('student', STUDENT_ROUTES)}
         {roleRoutes('lecturer', LECTURER_ROUTES)}
