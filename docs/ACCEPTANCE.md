@@ -58,4 +58,4 @@ deployed system during the final demonstration (`docs/DEMO_SCRIPT.md`, step numb
 | Schema and API docs synchronized with the implementation | `docs/ERD.md`, `docs/API.md` (tests enforce the API side) |
 | Seed/demo data for the final presentation | `db/seed/seed_demo.sql`, `scripts/seed_demo.py`, `docs/DEMO_SCRIPT.md` |
 | README, user guide, deployment steps | `README.md`, `docs/USER_GUIDE.md`, `docs/DEPLOYMENT.md` |
-| Browser pages | Front-end phase (outside this backend delivery; see `docs/FRONTEND.md`) |
+| Browser pages | `frontend/` (outside this backend delivery; route plan in `docs/FRONTEND.md`) |

@@ -97,7 +97,7 @@ temporary folder first, call that folder `$src`, then copy over.
    GitHub. The manual script remains as a fallback.
 6. **Backup export** is a portable JSON Lines copy for any plan. It excludes Supabase Storage files and Auth
    users; use Supabase's own backups or `pg_dump` for a full restore.
-7. **User guide** is task-based with the matching API operation, because the browser pages are not built yet.
+7. **User guide** is task-based with the matching API operation, so it stays correct when screens change (the pages themselves are in `frontend/`, outside this backend delivery).
 8. **Not done, by design**: malware scanning of uploads (SRS future item), accessibility (front end), the
    front-end `react-router` advisories (upgrade with the pages), a licence file (your choice), the final
    domain names (yours to pick).
