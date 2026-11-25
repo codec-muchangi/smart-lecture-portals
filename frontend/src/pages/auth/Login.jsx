@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext.jsx'
 
 /*
@@ -43,6 +43,8 @@ function renderIcon(name, size) {
 
 function Login() {
   const { login, user, loading } = useAuth()
+  const [searchParams] = useSearchParams()
+  const justReset = searchParams.get('reset') === '1'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -123,6 +125,11 @@ function Login() {
           </div>
 
           <form className="slpl-form" onSubmit={handleSubmit} noValidate>
+            {justReset && !message && (
+              <div className="slpl-notice" role="status">
+                Your password was changed. Sign in with your new password.
+              </div>
+            )}
             {message && (
               <div className="slpl-error" role="alert">
                 {renderIcon('error', 20)}
@@ -179,6 +186,10 @@ function Login() {
               </div>
             </div>
 
+            <div className="slpl-forgot">
+              <Link to="/forgot-password">Forgot password?</Link>
+            </div>
+            
             <button type="submit" className="slpl-submit" disabled={submitting}>
               {submitting ? (
                 <>
@@ -334,6 +345,10 @@ const STYLES = `
   border-radius: 999px; transition: color 0.2s;
 }
 .slpl-toggle:hover { color: var(--on-surface); }
+.slpl-forgot { display: flex; justify-content: flex-end; margin-top: -0.25rem; }
+.slpl-forgot a { font-size: 13px; font-weight: 600; color: var(--primary); }
+.slpl-forgot a:hover { text-decoration: underline; }
+.slpl-notice { padding: 0.75rem 1rem; border-radius: 16px; background: #e6f4ea; color: #14532d; font-size: 13px; line-height: 18px; font-weight: 500; }
 .slpl-submit {
   margin-top: 0.5rem; width: 100%; height: 48px; border: 0; border-radius: 999px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
