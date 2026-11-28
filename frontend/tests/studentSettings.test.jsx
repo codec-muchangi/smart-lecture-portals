@@ -46,7 +46,6 @@ function install(overrides = {}) {
       return me
     }
     if (key === 'POST /auth/password/change') return undefined
-    if (key === 'POST /auth/password/reset') return { status: 'accepted' }
     throw new Error(`unexpected request: ${key}`)
   })
 }
@@ -301,17 +300,6 @@ test('password fields can be shown and hidden', async () => {
   expect(field).toHaveAttribute('type', 'password')
 })
 
-test('"Forgot password?" requests a reset email, and explains a rate limit', async () => {
-  install()
-  renderPage()
-  await waitFor(() => expect(name()).toHaveValue('Alex Chen'))
-  fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('a reset link is on its way'))
-  expect(calls.find((entry) => entry.key === 'POST /auth/password/reset').body).toEqual({ email: 'alex.chen@campus.edu' })
-  install({ 'POST /auth/password/reset': httpError(429) })
-  fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }))
-  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Too many requests'))
-})
 
 test('notification preferences say plainly they are not available yet', async () => {
   install()

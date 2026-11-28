@@ -42,7 +42,6 @@ import {
  *     GET   /me                      profile, email, role details (staff_number, department, title, status)
  *     PATCH /me                      only full_name and phone can change (photos: POST/DELETE /me/avatar); the page sends only what changed
  *     POST  /auth/password/change    { current_password, new_password } -> 204; 400 with details per field
- *     POST  /auth/password/reset     { email } -> 202, same answer for any address
  *   plus Supabase sign-out (this device, or every other device).
  * - Email, staff number, department and title are shown read-only: the server rejects edits to them (422).
  * - The password rules shown are the server's: at least 8 characters, letters and digits, different from the current one.
@@ -436,13 +435,12 @@ function ProfileTab({ me }) {
   );
 }
 
-function SecurityTab({ me }) {
+function SecurityTab() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [serverErrors, setServerErrors] = useState({});
   const [status, setStatus] = useState(null);
-  const [resetStatus, setResetStatus] = useState(null);
   const checks = passwordChecks(current, next, confirm);
   const ready = current.length > 0 && checks.every((check) => check.met);
 
@@ -471,26 +469,6 @@ function SecurityTab({ me }) {
             : error?.message || "The password could not be changed.",
       });
     },
-  });
-  const reset = useMutation({
-    mutationFn: () =>
-      api("/auth/password/reset", {
-        method: "POST",
-        body: { email: me.email },
-      }),
-    onSuccess: () =>
-      setResetStatus({
-        ok: true,
-        text: `If ${me.email} can sign in, a reset link is on its way.`,
-      }),
-    onError: (error) =>
-      setResetStatus({
-        ok: false,
-        text:
-          error?.status === 429
-            ? "Too many requests. Please wait a few minutes and try again."
-            : "The reset email could not be requested. Try again shortly.",
-      }),
   });
 
   const submit = (event) => {
@@ -586,31 +564,6 @@ function SecurityTab({ me }) {
         </div>
       </form>
 
-      <div className="slpx-split">
-        <p>
-          {renderIcon("forward_to_inbox", 20)}
-          Forgot your current password? Email a reset link to {me.email}.
-        </p>
-        <button
-          type="button"
-          className="slpc-btn slpc-btn-soft"
-          onClick={() => {
-            setResetStatus(null);
-            reset.mutate();
-          }}
-          disabled={reset.isPending || !me.email}
-        >
-          {reset.isPending ? "Sending…" : "Email me a reset link"}
-        </button>
-      </div>
-      {resetStatus && (
-        <p
-          className={`slpx-status ${resetStatus.ok ? "" : "is-bad"}`}
-          role={resetStatus.ok ? "status" : "alert"}
-        >
-          {resetStatus.text}
-        </p>
-      )}
       <p className="slpx-note">
         {renderIcon("info", 18)}
         Two-factor authentication is not offered by the portal yet.
@@ -994,7 +947,7 @@ export default function LecturerSettings() {
               aria-labelledby={`tab-${tab}`}
             >
               {tab === "profile" && <ProfileTab me={me} />}
-              {tab === "security" && <SecurityTab me={me} />}
+              {tab === "security" && <SecurityTab />}
               {tab === "notifications" && (
                 <div>
                   <h2 className="slpc-h2">Your notifications</h2>

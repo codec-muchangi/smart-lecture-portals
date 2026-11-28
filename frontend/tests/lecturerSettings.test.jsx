@@ -64,7 +64,6 @@ function install(overrides = {}) {
       return me;
     }
     if (key === "POST /auth/password/change") return undefined;
-    if (key === "POST /auth/password/reset") return { status: "accepted" };
     throw new Error(`unexpected request: ${key}`);
   });
 }
@@ -344,35 +343,6 @@ test("password fields can be shown and hidden", async () => {
   expect(field).toHaveAttribute("type", "password");
 });
 
-test("requests a reset email, and explains a rate limit", async () => {
-  install();
-  renderPage();
-  await waitFor(() => expect(name()).toHaveValue("Marcus Sterling"));
-  openTab(/Account & security/);
-  fireEvent.click(
-    screen.getByRole("button", { name: "Email me a reset link" }),
-  );
-  await waitFor(() =>
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "a reset link is on its way",
-    ),
-  );
-  expect(
-    calls.find((entry) => entry.key === "POST /auth/password/reset").body,
-  ).toEqual({ email: "m.sterling@computing.edu" });
-  install({ "POST /auth/password/reset": httpError(429) });
-  fireEvent.click(
-    screen.getByRole("button", { name: "Email me a reset link" }),
-  );
-  await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent("Too many requests"),
-  );
-  expect(
-    screen.getByText(
-      "Two-factor authentication is not offered by the portal yet.",
-    ),
-  ).toBeInTheDocument();
-});
 
 test("notification preferences say plainly they are not available yet", async () => {
   install();
