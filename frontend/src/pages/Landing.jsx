@@ -31,13 +31,6 @@ const NAV_LINKS = [
   { label: 'For Lecturers', href: '#lecturers' },
 ]
 
-const TRUST_CHIPS = [
-  { icon: 'verified_user', label: 'Role-based access' },
-  { icon: 'cloud_sync', label: 'Private file storage' },
-  { icon: 'notifications_active', label: 'Real-time alerts' },
-  { icon: 'history_edu', label: 'Audit-tracked marks' },
-]
-
 const COMPARISONS = [
   {
     legacyIcon: 'sms_failed',
@@ -321,35 +314,6 @@ function Landing() {
                 Your Entire Course, <br className="slp-br" />
                 <span className="slp-h1-accent">in One Connected Place.</span>
               </h1>
-
-              <p className="slp-lead">
-                Smart Lecture Portal brings materials, assignments, attendance, marks, and
-                announcements together in one secure platform, so lecturers spend less time on
-                admin and students never miss a beat.
-              </p>
-
-              <div className="slp-hero-actions">
-                <Link to="/login" className="slp-btn slp-btn-primary slp-btn-lg">
-                  Sign in to your portal
-                </Link>
-                <a href="#how-it-works" className="slp-btn slp-btn-light slp-btn-lg">
-                  {renderIcon('play_circle', 20)}
-                  See how it works
-                </a>
-              </div>
-
-              <p className="slp-caption">
-                Built for lecturers and students. Secure, responsive, and ready on any device.
-              </p>
-
-              <ul className="slp-chips">
-                {TRUST_CHIPS.map((chip) => (
-                  <li key={chip.label}>
-                    {renderIcon(chip.icon, 18)}
-                    <span>{chip.label}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
 
             {/* Dashboard collage (no photos) */}
@@ -792,9 +756,6 @@ const STYLES = `
 .slp-btn-primary:hover { background: var(--primary-container); }
 .slp-btn-outline { border-color: var(--secondary); color: var(--secondary); background: transparent; }
 .slp-btn-outline:hover { background: var(--secondary-container); color: var(--on-secondary-container); }
-.slp-btn-light { background: var(--surface-lowest); color: var(--on-surface); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
-.slp-btn-light:hover { background: var(--surface-high); }
-.slp-btn-light .material-symbols-outlined { color: var(--primary); }
 .slp-btn-white { background: var(--surface-lowest); color: var(--primary); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18); }
 .slp-btn-white:hover { background: var(--surface-high); }
 
@@ -827,21 +788,6 @@ const STYLES = `
   color: var(--primary);
 }
 .slp-lead { margin-top: 1rem; max-width: 36rem; font-size: 16px; line-height: 1.65; color: var(--on-surface-variant); }
-.slp-hero-actions { margin-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
-.slp-caption { margin-top: 0.75rem; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--outline); }
-.slp-chips {
-  margin: 2rem 0 0; padding: 1rem 0 0; width: 100%; list-style: none;
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.875rem 1rem;
-}
-.slp-chips li {
-  display: flex; align-items: center; gap: 0.5rem; white-space: nowrap;
-  font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--on-surface-variant);
-}
-.slp-chips .material-symbols-outlined {
-  flex: 0 0 18px; width: 18px; height: 18px; overflow: hidden;
-  line-height: 1; color: var(--primary);
-}
 
 /* Hero visual */
 .slp-hero-visual { display: flex; align-items: center; justify-content: center; }
@@ -1024,7 +970,6 @@ const STYLES = `
 
 /* Tablet */
 @media (min-width: 640px) {
-  .slp-chips { display: flex; flex-wrap: wrap; gap: 0.875rem 1.75rem; }
   .slp-features { grid-template-columns: repeat(2, 1fr); }
   .slp-security-grid { grid-template-columns: repeat(2, 1fr); }
   .slp-wide { grid-column: span 2; }
@@ -1060,7 +1005,6 @@ const STYLES = `
   .slp-container, .slp-header-inner { padding-left: 1rem; padding-right: 1rem; }
   .slp-mobile-menu { padding-left: 1rem; padding-right: 1rem; }
   .slp-logo-text { font-size: 14px; }
-  .slp-hero-actions .slp-btn { width: 100%; }
   .slp-dash { padding: 1rem; }
   .slp-role, .slp-security { padding: 1.25rem; }
 }
