@@ -995,6 +995,7 @@ const STYLES = `
   .slp-menu-toggle { display: none; }
   .slp-mobile-menu { display: none; }
   .slp-hero { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  .slp-hero-copy { align-self: start; }
   .slp-h1 { font-size: 48px; line-height: 1.1; }
   .slp-h2 { font-size: 32px; }
   .slp-features { grid-template-columns: repeat(5, 1fr); }
