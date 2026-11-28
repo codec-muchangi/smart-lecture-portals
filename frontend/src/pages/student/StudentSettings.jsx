@@ -21,7 +21,6 @@ import { baseValues, changedPayload, detailsOf, firstText, passwordChecks, valid
  *     GET   /me                      profile, email, student details (registration_number, program, year_of_study, status)
  *     PATCH /me                      only full_name and phone can change (photos: POST/DELETE /me/avatar); the page sends only what changed
  *     POST  /auth/password/change    { current_password, new_password } -> 204; 400 with details per field
- *     POST  /auth/password/reset     { email } -> 202, same answer for any address
  *   plus Supabase sign-out: this device only (scope 'local'), or every device (scope 'global').
  * - Email, registration number, programme, year and status are read-only: the server rejects edits to them (422).
  * - The password rules shown are the server's: at least 8 characters, letters and digits, different from the current one.
@@ -222,13 +221,12 @@ function PasswordField({ id, label, value, onChange, error, autoComplete, action
   )
 }
 
-function SecuritySection({ me }) {
+function SecuritySection() {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
   const [serverErrors, setServerErrors] = useState({})
   const [status, setStatus] = useState(null)
-  const [resetStatus, setResetStatus] = useState(null)
   const checks = passwordChecks(current, next, confirm)
   const metCount = checks.filter((check) => check.met).length
   const ready = current.length > 0 && metCount === checks.length
@@ -250,11 +248,6 @@ function SecuritySection({ me }) {
       setServerErrors(mapped)
       setStatus({ ok: false, text: Object.keys(mapped).length > 0 ? 'Please check the highlighted fields.' : error?.message || 'The password could not be changed.' })
     },
-  })
-  const reset = useMutation({
-    mutationFn: () => api('/auth/password/reset', { method: 'POST', body: { email: me.email } }),
-    onSuccess: () => setResetStatus({ ok: true, text: `If ${me.email} can sign in, a reset link is on its way.` }),
-    onError: (error) => setResetStatus({ ok: false, text: error?.status === 429 ? 'Too many requests. Please wait a few minutes and try again.' : 'The reset email could not be requested. Try again shortly.' }),
   })
 
   const submit = (event) => {
@@ -284,17 +277,7 @@ function SecuritySection({ me }) {
           }}
           error={serverErrors.current}
           autoComplete="current-password"
-          action={
-            <button type="button" className="slpz-link" onClick={() => { setResetStatus(null); reset.mutate() }} disabled={reset.isPending || !me.email}>
-              {reset.isPending ? 'Sending…' : 'Forgot password?'}
-            </button>
-          }
         />
-        {resetStatus && (
-          <p className={`slpz-status ${resetStatus.ok ? '' : 'is-bad'}`} role={resetStatus.ok ? 'status' : 'alert'}>
-            {resetStatus.text}
-          </p>
-        )}
         <div className="slpz-grid">
           <div className="slpz-col" style={{ gap: '0.75rem' }}>
             <PasswordField
@@ -649,7 +632,7 @@ export default function StudentSettings() {
                 </div>
               </form>
 
-              <SecuritySection me={me} />
+              <SecuritySection />
 
               <section className="slpz-section" id="set-notifications" aria-label="Notification preferences" style={{ padding: 0 }}>
                 <div className="slpc-card">
